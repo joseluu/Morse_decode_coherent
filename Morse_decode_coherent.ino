@@ -233,11 +233,6 @@ void loop() {
   if(tunesw.pressed()){
     updateStatus ();
   }
-  if (Debug) {
-    Serial.println(CW_In.read());
-    //delay(250);
-  }
-
   decode();
 }
 
@@ -341,7 +336,11 @@ boolean sample() {
   // -------------------------------------------------- check for tone/no_tone
 
   while (1) {
-    float toneValue = CW_In.read();
+    if (!CW_In.is_power_value_available()){
+      delay(1);
+      continue;
+    }
+    float toneValue = CW_In.get_power_value();
     if (Debug) {
       Serial.print(toneValue);                          // décodage de la note par CW_in 
       Serial.print("\t");

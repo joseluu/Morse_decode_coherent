@@ -9,6 +9,7 @@
 
 #include <AudioStream_F32.h>
 #include <arm_math.h>
+#include <deque>
 
 #define PHASE_BUFFER_SIZE 2000  // Fixed size for sliding window
 
@@ -22,12 +23,12 @@ public:
     virtual void update(void);
 
 // Getter: returns estimated frequency offset in Hz (positive = received > carrier)
-    float getFrequencyOffsetHz() const { 
-      return frequency_offset_hz;
-    }
-    float32_t read(void);
-    float32_t get_f_sampling(void);
-    float32_t get_lowpass_cutoff(void);
+    bool is_frequency_offset_available() const;
+    float getFrequencyOffsetHz();
+    bool is_power_value_available() const;
+    float32_t get_power_value(void);
+    float32_t get_f_sampling(void) const;
+    float32_t get_lowpass_cutoff(void) const;
 
 private:
 // constants setup in the cpp file
@@ -35,11 +36,11 @@ private:
     static float32_t f_sampling;
     static float32_t fs_resampled;
     static float32_t lowpass_cutoff;
-    int   decimation_factor;
+    static int   decimation_factor;
 
     // Runtime state
     int   sample_counter = 0;
-    int   current_phase = 0; // 0,1,2,3 corresponding to 0°, 90°, 180°, 270°
+    int   phase_counter = 0; // 0,1,2,3 corresponding to 0°, 90°, 180°, 270°
 
     float32_t I_val = 0.0f;
     float32_t Q_val = 0.0f;
@@ -54,6 +55,18 @@ private:
 
     // Estimated frequency offset (updated at end of each block)
     float     frequency_offset_hz = 0.0f;
+
+    // Small queues for power and phase
+    std::deque<float32_t> power_queue;
+    std::deque<float32_t> frequency_offset_queue;  // unwrapped phase
+
+// Current values to repeat on debug outputs
+    float32_t current_pre = 0.0f;
+    float32_t current_bessel = 0.0f;
+    float32_t current_I = 0.0f;
+    float32_t current_Q = 0.0f;
+    float32_t current_power = 0.0f;
+    float32_t current_phase = 0.0f;
 
     // Anti-aliasing pre-filter (4th order Butterworth at 2*f_carrier)
     arm_biquad_casd_df1_inst_f32 pre_filter;
