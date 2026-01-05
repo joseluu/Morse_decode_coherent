@@ -19,14 +19,14 @@ int AudioCoherentDemod4x_F32::decimation_factor = 12;
 
 // Coefficients pré-filtre anti-aliasing (Butterworth 4ème ordre à 2*f_carrier)
 float32_t AudioCoherentDemod4x_F32::pre_sos[12] = {
-    0.002576434f, 0.005152869f, 0.002576434f, 1.184762086f, -0.368045419f,
-    1.000000000f, 2.000000000f, 1.000000000f, 1.453865658f, -0.678779458f,
+    0.000213139f, 0.000426277f, 0.000213139f, 1.559054301f, -0.614051782f,
+    1.000000000f, 2.000000000f, 1.000000000f, 1.757753609f, -0.819760443f,
 };
 
 // Coefficients filtre Bessel 4ème ordre à f_carrier avant decimation
 float32_t AudioCoherentDemod4x_F32::bessel_sos[12] = {
-    0.009366615f, 0.018733230f, 0.009366615f, 0.876186086f, -0.206055218f,
-    1.000000000f, 2.000000000f, 1.000000000f, 0.913709762f, -0.368028846f,
+    0.001030600f, 0.002061200f, 0.001030600f, 1.354176305f, -0.464867481f,
+    1.000000000f, 2.000000000f, 1.000000000f, 1.434800897f, -0.583770298f,
 };
 
 // Coefficients filtre final enveloppe (Butterworth 2ème ordre)
@@ -101,16 +101,18 @@ void AudioCoherentDemod4x_F32::update(void)
         float32_t sample = in_block->data[i];
 
         // 1. Anti-aliasing pre-filter @ f_carrier*2
-        arm_biquad_cascade_df1_f32(&pre_filter, &sample, &sample, 1);
+        arm_biquad_cascade_df1_f32(&pre_filter, &sample, &current_pre, 1);
+        sample = current_pre;
         out_blocks[1]->data[idx] = current_pre;
 
-        // Lowpass filtering todo: move after decimation ?
-        arm_biquad_cascade_df1_f32(&bessel_filter, &sample, &sample, 1);
-        current_bessel = sample;
+        // todo: decimate to f_carrier *2 and insert search fft
+
+        // Lowpass filtering @ f_carrier
+        arm_biquad_cascade_df1_f32(&bessel_filter, &sample, &current_bessel, 1);
+        sample = current_bessel;
         out_blocks[2]->data[idx] = current_bessel;
 
-        // 2. Decimation and phase tracking 
-        // todo: insert fft on decimated samples
+        // 2. Decimation and phase tracking
         sample_counter++;
         if (sample_counter >= decimation_factor) {
             sample_counter = 0;
