@@ -28,7 +28,7 @@
 
 
                        // signal/tuning indicator
-bool Debug = false;                             // use to set Threshold while viewing your Serial Monitor
+#define Debug true
 
 unsigned long Start_reference = 100;            // choose value midway between dot and dash at target speed
 unsigned long Reference = Start_reference;
@@ -132,23 +132,39 @@ const int myInput = AUDIO_INPUT_LINEIN;                 // entrée connecteur 10
 
 // GUItool: begin automatically generated code
 AudioInputI2S                      I2s1;           //xy=89,393
-AudioAnalyzeFFT1024_IQ_F32         myFFT;          //xy=336,140
+//AudioAnalyzeFFT1024_IQ_F32         myFFT;          //xy=336,140
 AudioCoherentDemod4x_F32           CW_In;      //xy=474,405
 AudioAnalyzeNoteFrequency          notefreq1 ;
-AudioConvert_F32toI16              cnvrt0 ;
-AudioConvert_I16toF32              cnvrt1 ;
+AudioConvert_I16toF32              cnvrtI2F0 ;
+AudioConvert_F32toI16              cnvrtF2I0 ;
+AudioConvert_F32toI16              cnvrtF2I1 ;
 AudioOutputI2S                     I2s2;           //xy=1288,393
 AudioConnection              patchCord1(I2s1, 1, notefreq1,0);                // en 16 bits utilisé pour test 
-AudioConnection              patchCord2(I2s1, 1, cnvrt1,0);                   // 16 bits vers Float32
+AudioConnection              patchCord2(I2s1, 1, cnvrtI2F0,0);                   // 16 bits vers Float32
 
-AudioConnection_F32          patchCord4(cnvrt1, 0, myFFT, 0);                 // en 32 bits
-AudioConnection_F32          patchCord5(cnvrt1, 0, myFFT, 1);                 // en 32 bits
-AudioConnection_F32          patchCord6(cnvrt1, 0, CW_In, 0);                 // en 32 bits décodage de la tonalité
+AudioConnection_F32          patchCord3(cnvrtI2F0, 0, CW_In, 0);                 // en 32 bits décodage de la tonalité
 
-AudioConnection_F32          patchCord7(cnvrt1, 0, cnvrt0, 0); 
-AudioConnection              patchCord8(cnvrt0, 0, I2s2, 0);                 // monitor input
-AudioConnection              patchCord9(cnvrt0, 0, I2s2, 1);   
+//AudioConnection_F32          patchCord4(cnvrtI2F0, 0, myFFT, 0);                 // en 32 bits
+//AudioConnection_F32          patchCord5(cnvrtI2F0, 0, myFFT, 1);                 // en 32 bits
 
+
+// connections to output channels
+#if Debug
+  // 0 power (lp filtered)
+  // 1 prefilter (after)
+  // 2 besselfilter (after)
+  // 3 I subsampled by decimation_factor
+  // 4 Q subsampled by decimation_factor
+  // 5 instant phase (subsampled by decimation factor)
+AudioConnection_F32          patchCord4(CW_In, 1, cnvrtF2I0, 0);      // debug by sending internal taps to output 
+AudioConnection_F32          patchCord5(CW_In, 2, cnvrtF2I1, 0); 
+#else // monitoring
+AudioConnection_F32          patchCord4(cnvrtI2F0, 0, cnvrtF2I0, 0);  // audio monitor by sending input directly to output  
+AudioConnection_F32          patchCord5(cnvrtI2F0, 0, cnvrtF2I1, 0);   
+#endif
+
+AudioConnection              patchCord8(cnvrtF2I0, 0, I2s2, 0);
+AudioConnection              patchCord9(cnvrtF2I1, 0, I2s2, 1); 
 
 AudioControlSGTL5000              sgtl5000_1;    //xy=503,960
 // GUItool: end automatically generated code
@@ -166,15 +182,15 @@ void setup() {
   //---------------------------------------------------------configure paramètres SGTL5000
   sgtl5000_1.enable();
   AudioMemory(100);                                       // pour le 16 bits 
-  AudioMemory_F32(100);                                   // pour le 32 bits 
+  AudioMemory_F32(200);                                   // pour le 32 bits 
   sgtl5000_1.inputSelect(myInput );
   sgtl5000_1.volume(0.6);
   sgtl5000_1.lineInLevel (11);                            // 0 à 15   15: 0.24Vpp    11: 0.48Vpp   // avoid saturation !
   sgtl5000_1.lineOutLevel (13);                           // 13 to 31     13 = maximum
-  myFFT.setOutputType(0);                                 // type de donnée FFT
-  myFFT.setXAxis(0X01);                                   // sens de lecture 
-  //myFFT.setNAverage(5);
-  myFFT.windowFunction(AudioWindowHanning1024);
+  // myFFT.setOutputType(0);                                 // type de donnée FFT
+  // myFFT.setXAxis(0X01);                                   // sens de lecture 
+  // myFFT.setNAverage(5);
+  // myFFT.windowFunction(AudioWindowHanning1024);
 
   notefreq1.begin(0.08f);
   
@@ -341,7 +357,7 @@ boolean sample() {
       continue;
     }
     float toneValue = CW_In.get_power_value();
-    if (Debug) {
+    if (false && Debug) {
       Serial.print(toneValue);                          // décodage de la note par CW_in 
       Serial.print("\t");
       Serial.print(Marge);
@@ -481,7 +497,7 @@ void decode() {
 
       // ----- print letter
       if (Debug) {
-      Serial.print(Symbol[Index]); 
+        Serial.print(Symbol[Index]); 
       } 
       if(Symbol[Index] > 0x20)                       // print letter to Serial Monitor
       {
@@ -531,7 +547,7 @@ void dot() {
     Tone_index = 0;
     Symbol_count = 0;
     if (Debug) {
-    Serial.println("error");
+      Serial.println("error in dot");
     }
     // ----- point to start
     Started = false;
@@ -563,7 +579,7 @@ void dash() {
     Tone_index = 0;
     Symbol_count = 0;
     if (Debug) {
-      Serial.println("error");
+      Serial.println("error in dash");
     }
     // ----- point to start
     Started = false;

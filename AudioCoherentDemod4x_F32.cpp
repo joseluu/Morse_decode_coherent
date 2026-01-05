@@ -78,6 +78,12 @@ void AudioCoherentDemod4x_F32::update(void)
     if (!in_block) return;
 
 // Allouer 6 blocs de sortie
+        // out_blocks[0] power (lp filtered)
+        // out_blocks[1] prefilter (after)
+        // out_blocks[2] besselfilter (after)
+        // out_blocks[3] I subsampled by decimation_factor
+        // out_blocks[4] Q subsampled by decimation_factor
+        // out_blocks[5] instant phase (subsampled by decimation factor)
     audio_block_f32_t *out_blocks[6] = {nullptr};
     for (int ch = 0; ch < 6; ch++) {
         out_blocks[ch] = allocate_f32();
