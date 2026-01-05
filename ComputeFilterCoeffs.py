@@ -20,7 +20,7 @@ print(f"int AudioCoherentDemod4x_F32::decimation_factor = {desired_decimation};"
 print("\n")
 
 # === 1. Pré-filtre anti-aliasing : Butterworth 4ème ordre à 2*f_carrier ===
-pre_cutoff = 2.0 * f_carrier
+pre_cutoff = 4.0 * f_carrier
 sos_pre = signal.butter(4, pre_cutoff / (f_sampling / 2.0), btype='low', output='sos')
 
 print("// Coefficients pré-filtre anti-aliasing (Butterworth 4ème ordre à 2*f_carrier)")
@@ -32,8 +32,7 @@ print("};\n")
 
 # === 2. Filtre Bessel passe-bas à f_carrier (avant décimation) ===
 # Ordre 4 pour bon compromis atténuation / retard de groupe
-bessel_cutoff_factor = 0.95  # Ajuste entre 0.8 et 0.95 selon tes besoins
-bessel_cutoff = bessel_cutoff_factor * (f_carrier / 2.0)  # < Nyquist
+bessel_cutoff = f_carrier * 2.0
 sos_bessel = signal.bessel(4, bessel_cutoff / (f_sampling / 2.0), btype='low', output='sos', norm='delay')
 
 print("// Coefficients filtre Bessel 4ème ordre à f_carrier avant decimation")

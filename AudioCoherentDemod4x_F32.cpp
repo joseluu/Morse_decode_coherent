@@ -19,14 +19,14 @@ int AudioCoherentDemod4x_F32::decimation_factor = 12;
 
 // Coefficients pré-filtre anti-aliasing (Butterworth 4ème ordre à 2*f_carrier)
 float32_t AudioCoherentDemod4x_F32::pre_sos[12] = {
-    0.000213139f, 0.000426277f, 0.000213139f, 1.559054301f, -0.614051782f,
-    1.000000000f, 2.000000000f, 1.000000000f, 1.757753609f, -0.819760443f,
+    0.002576434f, 0.005152869f, 0.002576434f, 1.184762086f, -0.368045419f,
+    1.000000000f, 2.000000000f, 1.000000000f, 1.453865658f, -0.678779458f,
 };
 
 // Coefficients filtre Bessel 4ème ordre à f_carrier avant decimation
 float32_t AudioCoherentDemod4x_F32::bessel_sos[12] = {
-    0.000072333f, 0.000144665f, 0.000072333f, 1.667249718f, -0.696988525f,
-    1.000000000f, 2.000000000f, 1.000000000f, 1.731916122f, -0.770832303f,
+    0.009366615f, 0.018733230f, 0.009366615f, 0.876186086f, -0.206055218f,
+    1.000000000f, 2.000000000f, 1.000000000f, 0.913709762f, -0.368028846f,
 };
 
 // Coefficients filtre final enveloppe (Butterworth 2ème ordre)
