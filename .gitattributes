@@ -1,2 +1,5 @@
 # Force headers to count as C++
 *.h linguist-language=C++
+
+# Optional: Hide or de-emphasize non-core files 
+*.ipynb linguist-generated=true
