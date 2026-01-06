@@ -1,0 +1,2 @@
+# Force headers to count as C++
+*.h linguist-language=C++
