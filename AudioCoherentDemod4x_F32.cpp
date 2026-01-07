@@ -77,6 +77,12 @@ void AudioCoherentDemod4x_F32::update(void)
     audio_block_f32_t *in_block = receiveReadOnly_f32();
     if (!in_block) return;
 
+#define POWER 0
+#define PRE 1
+#define BESSEL 2
+#define I_SAMPLES 3
+#define Q_SAMPLES 4
+#define PHASE_SAMPLES 5
 // Allouer 6 blocs de sortie
         // out_blocks[0] power (lp filtered)
         // out_blocks[1] prefilter (after)
@@ -173,11 +179,13 @@ void AudioCoherentDemod4x_F32::update(void)
                 power_queue.push_back(power);
                 
             }
-        } // after decimation
+        } else { // not a decimation index
+
+        }
         // Répétition des valeurs démodulées sur les sorties debug
         out_blocks[0]->data[idx] = current_power;     // power_filtered
-        out_blocks[3]->data[idx] = current_I;         // I répété
-        out_blocks[4]->data[idx] = current_Q;         // Q répété
+        out_blocks[I_SAMPLES]->data[idx] = I_val;
+        out_blocks[Q_SAMPLES]->data[idx] = Q_val;
         out_blocks[5]->data[idx] = current_phase;     // phase répétée
 
         idx++;
