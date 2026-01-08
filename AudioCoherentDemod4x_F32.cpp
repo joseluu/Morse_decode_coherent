@@ -165,19 +165,22 @@ void AudioCoherentDemod4x_F32::update(void)
                 current_I = I_val;
                 current_Q = Q_val;
 
-                // Instantaneous power
+// Instantaneous power
                 float32_t power = I_val * I_val + Q_val * Q_val;
                 arm_biquad_cascade_df1_f32(&lp_filter, &power, &power, 1);
 
-                // Simple running max normalization
-                if (power > running_max_power) running_max_power = power;
+// Simple running max normalization
+                if (power > running_max_power) 
+                    running_max_power = power;
                 if (running_max_power > 1e-12f) {
                     power /= running_max_power;
                 }
 
                 current_power = power;
                 power_queue.push_back(power);
-                
+                if (power_queue.size() > 10){
+                    power_queue.pop_front();
+                }
             }
         } else { // not a decimation index
 
@@ -212,6 +215,9 @@ void AudioCoherentDemod4x_F32::update(void)
             frequency_offset_queue.push_back(frequency_offset_hz);
         } else {
             frequency_offset_queue.push_back(999.0f);  // signal error
+        }
+        if (frequency_offset_queue.size() > 10){
+            frequency_offset_queue.pop_front();
         }
     }
 
