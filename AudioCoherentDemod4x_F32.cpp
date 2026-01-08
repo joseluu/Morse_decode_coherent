@@ -132,10 +132,10 @@ void AudioCoherentDemod4x_F32::update(void)
                     Q_val = sample;
                     break;
                 case 2:  // 180° -> -I
-                    I_val = -sample;
+                    I_val -= sample;
                     break;
                 case 3:  // 270° -> -Q
-                    Q_val = -sample;
+                    Q_val -= sample;
                     break;
             }
 
