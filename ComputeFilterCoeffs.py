@@ -9,6 +9,7 @@ lowpass_cutoff = 3.0      # Coupure finale sur enveloppe (Hz) – ajuste selon v
 desired_decimation = 12    # Ex: 15 → fs_resampled = 44100 / 15 = 2940 Hz → f_carrier = 2940 / 4 = 735 Hz
 # Autres valeurs courantes : 12, 10, 20, etc.
 
+# === Calcul de la fréquence d'échantillonnage resultant des choix ci-dessus ===
 f_sampling = f_carrier * 4.0 * desired_decimation         # Fréquence d'échantillonnage Teensy
 
 

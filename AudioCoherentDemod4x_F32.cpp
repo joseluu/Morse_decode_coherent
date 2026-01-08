@@ -4,11 +4,10 @@
 
 #include "AudioCoherentDemod4x_F32.h"
 
-// Placeholder coefficients - REPLACE with real values generated via Python
-// Example for fs=44100, f_carrier=735 Hz (2940 Hz resampled, decimation=15)
-// f_carrier choisi = 735.000 Hz
-// fs_resampled (4*fc) = 2940.0 Hz
-// Facteur de décimation = 15 (entier → parfait !) sampling @ 44100Hz
+// Placeholder coefficients - REPLACE with real values generated via 
+// the Python script ComputeFilterCoeffs.py
+
+// Start of Python generated section
 
 // Parametres du traitement
 float32_t AudioCoherentDemod4x_F32::f_carrier = 900.000f;
@@ -33,6 +32,8 @@ float32_t AudioCoherentDemod4x_F32::bessel_sos[12] = {
 float32_t AudioCoherentDemod4x_F32::lp_sos[6] = {
     0.000108058f, 0.000216116f, 0.000108058f, 1.970382898f, -0.970815131f
 };
+
+// --- END of Python generated section -----------------
 
 AudioCoherentDemod4x_F32::AudioCoherentDemod4x_F32()
     : AudioStream_F32(1, inputQueueArray)
