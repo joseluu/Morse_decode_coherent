@@ -42,9 +42,13 @@ AudioCoherentDemod4x_F32::AudioCoherentDemod4x_F32()
     arm_biquad_cascade_df1_init_f32(&pre_filter, 2, pre_sos, pre_state);
     arm_biquad_cascade_df1_init_f32(&bessel_filter, 2, bessel_sos, bessel_state);
     arm_biquad_cascade_df1_init_f32(&lp_filter, 1, lp_sos, lp_state);
+    detection_threshold = 0.22; // default value (close to sqrt(0.5))
+    above_threshold = false;
+    global_sample_counter = 0;
 }
 
-bool AudioCoherentDemod4x_F32::is_frequency_offset_available() const {
+
+bool AudioCoherentDemod4x_F32::has_frequency_offset_available() const {
     return !power_queue.empty();
 }
 float AudioCoherentDemod4x_F32::getFrequencyOffsetHz() { 
@@ -52,7 +56,7 @@ float AudioCoherentDemod4x_F32::getFrequencyOffsetHz() {
     frequency_offset_queue.pop_front();
     return frequency_offset_hz;
 }
-bool AudioCoherentDemod4x_F32::is_power_value_available() const {
+bool AudioCoherentDemod4x_F32::has_power_value_available() const {
     return !power_queue.empty();
 }
 float32_t AudioCoherentDemod4x_F32::get_power_value(void){
@@ -71,19 +75,31 @@ float32_t AudioCoherentDemod4x_F32::get_lowpass_cutoff(void) const
     return lowpass_cutoff;
 }
 
+bool AudioCoherentDemod4x_F32::has_state_change_available(){
+    StateChanged value = state_changes.front();
+    return !state_changes.empty();
+}
+
+StateChanged AudioCoherentDemod4x_F32::get_state_change(){
+    StateChanged value = state_changes.front();
+    state_changes.pop_front();
+    return value;
+}
+
+float32_t AudioCoherentDemod4x_F32::get_threshold(){ return detection_threshold;}
+
+void AudioCoherentDemod4x_F32::set_threshold(float32_t new_threshold){ detection_threshold = new_threshold; }
+
 void AudioCoherentDemod4x_F32::update(void)
 {
-    static unsigned int blkCount;
+    static unsigned int blkCount; // not used
+    float32_t raw_power = 0.0f;
+    float32_t power = 0.0f;
 
     audio_block_f32_t *in_block = receiveReadOnly_f32();
     if (!in_block) return;
 
-#define POWER 0
-#define PRE 1
-#define BESSEL 2
-#define I_SAMPLES 3
-#define Q_SAMPLES 4
-#define PHASE_SAMPLES 5
+
 // Allouer 6 blocs de sortie
         // out_blocks[0] power (lp filtered)
         // out_blocks[1] prefilter (after)
@@ -92,7 +108,7 @@ void AudioCoherentDemod4x_F32::update(void)
         // out_blocks[4] Q subsampled by decimation_factor
         // out_blocks[5] instant phase (subsampled by decimation factor)
     audio_block_f32_t *out_blocks[6] = {nullptr};
-    for (int ch = 0; ch < 6; ch++) {
+    for (int ch = 0; ch < OUTPUT_COUNT; ch++) {
         out_blocks[ch] = allocate_f32();
         if (!out_blocks[ch]) {
             // En cas d'échec, libérer les précédents et sortir
@@ -105,6 +121,7 @@ void AudioCoherentDemod4x_F32::update(void)
     int idx = 0;
 
     for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
+        global_sample_counter++; 
         float32_t sample = in_block->data[i];
 
         // 1. Anti-aliasing pre-filter @ f_carrier*2
@@ -167,14 +184,33 @@ void AudioCoherentDemod4x_F32::update(void)
                 current_Q = Q_val;
 
 // Instantaneous power
-                float32_t power = I_val * I_val + Q_val * Q_val;
-                arm_biquad_cascade_df1_f32(&lp_filter, &power, &power, 1);
+                raw_power = I_val * I_val + Q_val * Q_val;
+                arm_biquad_cascade_df1_f32(&lp_filter, &raw_power, &power, 1);
 
 // Simple running max normalization
                 if (power > running_max_power) 
                     running_max_power = power;
                 if (running_max_power > 1e-12f) {
+                    raw_power /= running_max_power;
                     power /= running_max_power;
+                }
+
+// Handle detection
+                if (power > detection_threshold){ // going up
+                    if (! above_threshold) { // was down
+                        StateChanged new_state(true, global_sample_counter);
+                        state_changes.push_back(new_state);
+                        above_threshold = true;
+                    }
+                } else { // going low
+                    if (above_threshold) { // was up
+                        StateChanged new_state(false, global_sample_counter);
+                        state_changes.push_back(new_state);
+                        above_threshold = false;
+                    }
+                }
+                if (state_changes.size() > 10){
+                    state_changes.pop_front();
                 }
 
                 current_power = power;
@@ -182,15 +218,20 @@ void AudioCoherentDemod4x_F32::update(void)
                 if (power_queue.size() > 10){
                     power_queue.pop_front();
                 }
+                out_blocks[SUBSAMPLE_TICKS]->data[idx] = 1.0f;
+            } else {
+                out_blocks[SUBSAMPLE_TICKS]->data[idx] = 0.0f;
             }
         } else { // not a decimation index
-
+            out_blocks[SUBSAMPLE_TICKS]->data[idx] = 0.0f;
         }
         // Répétition des valeurs démodulées sur les sorties debug
         out_blocks[0]->data[idx] = current_power;     // power_filtered
         out_blocks[I_SAMPLES]->data[idx] = I_val;
         out_blocks[Q_SAMPLES]->data[idx] = Q_val;
-        out_blocks[5]->data[idx] = current_phase;     // phase répétée
+        out_blocks[PHASE_SAMPLES]->data[idx] = current_phase;
+        out_blocks[UNFILTERED_POWER]->data[idx] = raw_power;
+        out_blocks[DETECTION_SAMPLES]->data[idx] = (above_threshold ? 1.0f : 0.0f); // output square wave of detection state
 
         idx++;
     }
@@ -229,7 +270,7 @@ void AudioCoherentDemod4x_F32::update(void)
     //Serial.printf("received block: %6d last_power_value: %f\n", blkCount++, running_max_power);
 
 // Transmission des 6 blocs
-    for (int ch = 0; ch < 6; ch++) {
+    for (int ch = 0; ch < OUTPUT_COUNT; ch++) {
         out_blocks[ch]->length = AUDIO_BLOCK_SAMPLES;
         transmit(out_blocks[ch], ch);
         release(out_blocks[ch]);

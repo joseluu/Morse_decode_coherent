@@ -13,6 +13,28 @@
 
 #define PHASE_BUFFER_SIZE 2000  // Fixed size for sliding window
 
+#define OUTPUT_COUNT 9
+
+#define POWER 0
+#define PRE 1
+#define BESSEL 2
+#define I_SAMPLES 3
+#define Q_SAMPLES 4
+#define PHASE_SAMPLES 5
+#define SUBSAMPLE_TICKS 6
+#define DETECTION_SAMPLES 7
+#define UNFILTERED_POWER 8
+
+class StateChanged {
+    public:
+        StateChanged(bool direction, uint32_t count) {
+            toTone = direction;
+            when = count;
+        }
+    bool toTone;
+    uint32_t when;
+};
+
 class AudioCoherentDemod4x_F32 : public AudioStream_F32
 {
 public:
@@ -23,12 +45,16 @@ public:
     virtual void update(void);
 
 // Getter: returns estimated frequency offset in Hz (positive = received > carrier)
-    bool is_frequency_offset_available() const;
+    bool has_frequency_offset_available() const;
     float getFrequencyOffsetHz();
-    bool is_power_value_available() const;
+    bool has_power_value_available() const;
     float32_t get_power_value(void);
     float32_t get_f_sampling(void) const;
     float32_t get_lowpass_cutoff(void) const;
+    bool has_state_change_available();
+    StateChanged get_state_change();
+    float32_t get_threshold();
+    void set_threshold(float32_t new_threshold);
 
 private:
 // constants setup in the cpp file
@@ -37,6 +63,11 @@ private:
     static float32_t fs_resampled;
     static float32_t lowpass_cutoff;
     static int   decimation_factor;
+
+// detection
+    float32_t detection_threshold;
+    bool above_threshold;
+    uint32_t global_sample_counter;
 
     // Runtime state
     int   sample_counter = 0;
@@ -59,6 +90,7 @@ private:
     // Small queues for power and phase
     std::deque<float32_t> power_queue;
     std::deque<float32_t> frequency_offset_queue;  // unwrapped phase
+    std::deque<StateChanged> state_changes;
 
 // Current values to repeat on debug outputs
     float32_t current_pre = 0.0f;

@@ -156,15 +156,15 @@ AudioConnection_F32          patchCord3(cnvrtI2F0, 0, CW_In, 0);                
   // 3 I subsampled by decimation_factor
   // 4 Q subsampled by decimation_factor
   // 5 instant phase (subsampled by decimation factor)
-AudioConnection_F32          patchCord4(CW_In, 3, cnvrtF2I0, 0);      // debug by sending internal taps to output 
-AudioConnection_F32          patchCord5(CW_In, 4, cnvrtF2I1, 0); 
+AudioConnection_F32          patchCord4(CW_In, 0, cnvrtF2I0, 0);      // debug by sending internal taps to output
+AudioConnection_F32          patchCord5(CW_In, 5, cnvrtF2I1, 0);
 #else // monitoring
-AudioConnection_F32          patchCord4(cnvrtI2F0, 0, cnvrtF2I0, 0);  // audio monitor by sending input directly to output  
-AudioConnection_F32          patchCord5(cnvrtI2F0, 0, cnvrtF2I1, 0);   
+AudioConnection_F32          patchCord4(cnvrtI2F0, 0, cnvrtF2I0, 0);  // audio monitor by sending input directly to output
+AudioConnection_F32          patchCord5(cnvrtI2F0, 0, cnvrtF2I1, 0);
 #endif
 
 AudioConnection              patchCord8(cnvrtF2I0, 0, I2s2, 0);
-AudioConnection              patchCord9(cnvrtF2I1, 0, I2s2, 1); 
+AudioConnection              patchCord9(cnvrtF2I1, 0, I2s2, 1);
 
 AudioControlSGTL5000              sgtl5000_1;    //xy=503,960
 // GUItool: end automatically generated code
@@ -352,7 +352,7 @@ boolean sample() {
   // -------------------------------------------------- check for tone/no_tone
 
   while (1) {
-    if (!CW_In.is_power_value_available()){
+    if (!CW_In.has_power_value_available()){
       delay(1);
       continue;
     }
