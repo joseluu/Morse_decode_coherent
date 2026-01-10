@@ -100,15 +100,15 @@ void AudioCoherentDemod4x_F32::update(void)
     if (!in_block) return;
 
 
-// Allouer 6 blocs de sortie
+// Allouer OUTPUT_BLOCK_COUNT blocs de sortie
         // out_blocks[0] power (lp filtered)
         // out_blocks[1] prefilter (after)
         // out_blocks[2] besselfilter (after)
         // out_blocks[3] I subsampled by decimation_factor
         // out_blocks[4] Q subsampled by decimation_factor
         // out_blocks[5] instant phase (subsampled by decimation factor)
-    audio_block_f32_t *out_blocks[6] = {nullptr};
-    for (int ch = 0; ch < OUTPUT_COUNT; ch++) {
+    audio_block_f32_t *out_blocks[OUTPUT_BLOCK_COUNT] = {nullptr};
+    for (int ch = 0; ch < OUTPUT_BLOCK_COUNT; ch++) {
         out_blocks[ch] = allocate_f32();
         if (!out_blocks[ch]) {
             // En cas d'échec, libérer les précédents et sortir
@@ -226,7 +226,7 @@ void AudioCoherentDemod4x_F32::update(void)
             out_blocks[SUBSAMPLE_TICKS]->data[idx] = 0.0f;
         }
         // Répétition des valeurs démodulées sur les sorties debug
-        out_blocks[0]->data[idx] = current_power;     // power_filtered
+        out_blocks[POWER]->data[idx] = current_power;     // power_filtered
         out_blocks[I_SAMPLES]->data[idx] = I_val;
         out_blocks[Q_SAMPLES]->data[idx] = Q_val;
         out_blocks[PHASE_SAMPLES]->data[idx] = current_phase;
@@ -270,7 +270,7 @@ void AudioCoherentDemod4x_F32::update(void)
     //Serial.printf("received block: %6d last_power_value: %f\n", blkCount++, running_max_power);
 
 // Transmission des 6 blocs
-    for (int ch = 0; ch < OUTPUT_COUNT; ch++) {
+    for (int ch = 0; ch < OUTPUT_BLOCK_COUNT; ch++) {
         out_blocks[ch]->length = AUDIO_BLOCK_SAMPLES;
         transmit(out_blocks[ch], ch);
         release(out_blocks[ch]);

@@ -25,6 +25,7 @@
 #include "ili9341_t3n_font_Arial.h"
 #include <Bounce2.h>
 #include "AudioCoherentDemod4x_F32.h"
+#include "AudioMixer9_F32.h"
 
 
                        // signal/tuning indicator
@@ -54,6 +55,8 @@ char CodeBuffer[num_chars];
 char DisplayLine[num_chars+1];
 int posH = 10;            // debut de la chaine de caratères horizontal
 int posV = 10;            // debut de la chaine de caratères vertical
+
+int selectedChannel1 = 0;
 
 //-----------------------------utilisé par le décodeur 
 float Diff = 0.2 ;
@@ -148,23 +151,44 @@ AudioConnection_F32          patchCord3(cnvrtI2F0, 0, CW_In, 0);                
 //AudioConnection_F32          patchCord5(cnvrtI2F0, 0, myFFT, 1);                 // en 32 bits
 
 
-// connections to output channels
-#if Debug
-  // 0 power (lp filtered)
-  // 1 prefilter (after)
-  // 2 besselfilter (after)
-  // 3 I subsampled by decimation_factor
-  // 4 Q subsampled by decimation_factor
-  // 5 instant phase (subsampled by decimation factor)
-AudioConnection_F32          patchCord4(CW_In, 0, cnvrtF2I0, 0);      // debug by sending internal taps to output
-AudioConnection_F32          patchCord5(CW_In, 5, cnvrtF2I1, 0);
-#else // monitoring
-AudioConnection_F32          patchCord4(cnvrtI2F0, 0, cnvrtF2I0, 0);  // audio monitor by sending input directly to output
-AudioConnection_F32          patchCord5(cnvrtI2F0, 0, cnvrtF2I1, 0);
-#endif
+AudioMixer9_F32              output0Selector;
+AudioMixer9_F32              output1Selector;
 
-AudioConnection              patchCord8(cnvrtF2I0, 0, I2s2, 0);
-AudioConnection              patchCord9(cnvrtF2I1, 0, I2s2, 1);
+#define POWER 0
+#define I_SAMPLES 1
+#define Q_SAMPLES 2
+#define PHASE_SAMPLES 3
+#define SUBSAMPLE_TICKS 4
+#define DETECTION_SAMPLES 5
+#define UNFILTERED_POWER 6
+#define BESSEL 7
+#define PRE 8
+
+AudioConnection_F32          connectDecoderOutputChannel00(CW_In, POWER, output0Selector, POWER);
+AudioConnection_F32          connectDecoderOutputChannel01(CW_In, I_SAMPLES, output0Selector, I_SAMPLES);
+AudioConnection_F32          connectDecoderOutputChannel02(CW_In, Q_SAMPLES, output0Selector, Q_SAMPLES);
+AudioConnection_F32          connectDecoderOutputChannel03(CW_In, PHASE_SAMPLES, output0Selector, PHASE_SAMPLES);
+AudioConnection_F32          connectDecoderOutputChannel04(CW_In, SUBSAMPLE_TICKS, output0Selector, SUBSAMPLE_TICKS);
+AudioConnection_F32          connectDecoderOutputChannel05(CW_In, DETECTION_SAMPLES, output0Selector, DETECTION_SAMPLES);
+AudioConnection_F32          connectDecoderOutputChannel06(CW_In, UNFILTERED_POWER, output0Selector, UNFILTERED_POWER);
+AudioConnection_F32          connectDecoderOutputChannel07(CW_In, BESSEL, output0Selector, BESSEL);
+AudioConnection_F32          connectDecoderOutputChannel08(CW_In, PRE, output0Selector, PRE);
+
+AudioConnection_F32          connectDecoderOutputChannel10(CW_In, POWER, output1Selector, POWER);
+AudioConnection_F32          connectDecoderOutputChannel11(CW_In, I_SAMPLES, output1Selector, I_SAMPLES);
+AudioConnection_F32          connectDecoderOutputChannel12(CW_In, Q_SAMPLES, output1Selector, Q_SAMPLES);
+AudioConnection_F32          connectDecoderOutputChannel13(CW_In, PHASE_SAMPLES, output1Selector, PHASE_SAMPLES);
+AudioConnection_F32          connectDecoderOutputChannel14(CW_In, SUBSAMPLE_TICKS, output1Selector, SUBSAMPLE_TICKS);
+AudioConnection_F32          connectDecoderOutputChannel15(CW_In, DETECTION_SAMPLES, output1Selector, DETECTION_SAMPLES);
+AudioConnection_F32          connectDecoderOutputChannel16(CW_In, UNFILTERED_POWER, output1Selector, UNFILTERED_POWER);
+AudioConnection_F32          connectDecoderOutputChannel17(CW_In, BESSEL, output1Selector, BESSEL);
+AudioConnection_F32          connectDecoderOutputChannel18(CW_In, PRE, output1Selector, PRE);
+
+AudioConnection_F32          connectOutput0(output0Selector,0,cnvrtF2I0,0);
+AudioConnection_F32          connectOutput1(output1Selector,0,cnvrtF2I1,0);
+
+AudioConnection              connectConverter0ToOuput(cnvrtF2I0, 0, I2s2, 0);
+AudioConnection              connectConverter1ToOuput(cnvrtF2I1, 0, I2s2, 1);
 
 AudioControlSGTL5000              sgtl5000_1;    //xy=503,960
 // GUItool: end automatically generated code
@@ -191,6 +215,14 @@ void setup() {
   // myFFT.setXAxis(0X01);                                   // sens de lecture 
   // myFFT.setNAverage(5);
   // myFFT.windowFunction(AudioWindowHanning1024);
+
+#if Debug // preselect channels of interest
+    selectChannel0(SUBSAMPLE_TICKS);
+    selectChannel1(UNFILTERED_POWER);
+#else
+    selectChannel0(BESSEL);  // audio feedback
+    selectChannel1(POWER);
+#endif
 
   notefreq1.begin(0.08f);
   
@@ -273,16 +305,32 @@ void Pas()
     Step = Step - 1;
     oldStep=Step+1;
     old_Pos_enc= Pos_enc;
-    if (Step <= 1) {                                                //valeur min encodeur
+    if (Step <= 1) {                                //valeur min encodeur
       Step = 1;
     }
     set_Choix_Rot();
   }
 }
 
+void selectChannel0(int newSelectedChannel){
+  for (int i = 0; i < 9; i++){ // deselect all channels
+    output0Selector.gain(i, 0.0f);
+  }
+  output0Selector.gain(newSelectedChannel, 1.0f);
+}
+
+
+void selectChannel1(int newSelectedChannel){
+  for (int i = 0; i < 9; i++){ // deselect all channels
+    output1Selector.gain(i, 0.0f);
+  }
+  output1Selector.gain(newSelectedChannel, 1.0f);
+}
+
 void set_Choix_Rot()
 {
-  Marge = Step/100.0;
+  Marge = Step/100.0; // old
+  selectedChannel1 = Step % 9;
   displayBottom();
   delay(100);                              // Pour éviter les appuis multiples 
 }
@@ -331,8 +379,13 @@ void displayBottom(){
   tft.setFont(Arial_14);
   tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK); 
   tft.setCursor(20, 220);
+#if 0
   tft.print("Marge ") ;
   tft.print(Marge) ;
+#else
+  tft.print("Sel: ") ;
+  tft.print(detectorOutputChannelNames[selectedChannel1]) ;
+#endif
   tft.setCursor(160, 220);
   tft.print(Step);
   tft.setCursor(210, 220);

@@ -13,17 +13,30 @@
 
 #define PHASE_BUFFER_SIZE 2000  // Fixed size for sliding window
 
-#define OUTPUT_COUNT 9
+#define OUTPUT_BLOCK_COUNT 9
 
 #define POWER 0
-#define PRE 1
-#define BESSEL 2
-#define I_SAMPLES 3
-#define Q_SAMPLES 4
-#define PHASE_SAMPLES 5
-#define SUBSAMPLE_TICKS 6
-#define DETECTION_SAMPLES 7
-#define UNFILTERED_POWER 8
+#define I_SAMPLES 1
+#define Q_SAMPLES 2
+#define PHASE_SAMPLES 3
+#define SUBSAMPLE_TICKS 4
+#define DETECTION_SAMPLES 5
+#define UNFILTERED_POWER 6
+#define BESSEL 7
+#define PRE 8
+
+static constexpr const char* const detectorOutputChannelNames[] = {
+    "POWER",
+    "I_SAMPLES",
+    "Q_SAMPLES",
+    "PHASE_SAMPLES",
+    "SUBSAMPLE_TICKS",
+    "DETECTION_SAMPLES",
+    "UNFILTERED_POWER",
+    "SUBSAMPLE_TICKS",
+    "BESSEL",
+    "PRE"
+};
 
 class StateChanged {
     public:
