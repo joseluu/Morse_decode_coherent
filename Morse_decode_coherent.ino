@@ -331,6 +331,7 @@ void set_Choix_Rot()
 {
   Marge = Step/100.0; // old
   selectedChannel1 = Step % 9;
+  selectChannel1(selectedChannel1);
   displayBottom();
   delay(100);                              // Pour éviter les appuis multiples 
 }
@@ -386,10 +387,10 @@ void displayBottom(){
   tft.print("Sel: ") ;
   tft.print(detectorOutputChannelNames[selectedChannel1]) ;
 #endif
-  tft.setCursor(160, 220);
+  tft.setCursor(200, 220);
   tft.print(Step);
-  tft.setCursor(210, 220);
-  tft.print("filter ") ;
+  tft.setCursor(250, 220);
+  tft.print("f:") ;
   tft.print(CW_In.get_lowpass_cutoff());
   tft.print(" Hz") ; 
 }
