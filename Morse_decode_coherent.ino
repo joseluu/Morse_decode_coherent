@@ -1,6 +1,6 @@
 /*
 
-  Inspiré de 
+  Inspiré de
   MorseCodeDecoder6.ino
   Code by by LINGIB
   https://www.instructables.com/member/lingib/instructables/
@@ -50,26 +50,70 @@ bool Tone = false;
 
 //------------------------------- utilisé par l'affichage
 #define SCREEN_WIDTH 320
+#define SCREEN_HEIGHT 240
 #define num_chars 300
 char CodeBuffer[num_chars];
 char DisplayLine[num_chars+1];
-int posH = 10;            // debut de la chaine de caratères horizontal
-int posV = 10;            // debut de la chaine de caratères vertical
 
-int selectedChannel1 = 0;
+// Display layout zones
+#define DECODE_AREA_Y      0
+#define DECODE_AREA_HEIGHT 54       // 3 lines of Arial_14 (~18px each)
+#define MENU_AREA_Y        56
+#define MENU_LINE_HEIGHT   22
+#define VERSION_LINE_Y     222      // bottom line for version
 
-//-----------------------------utilisé par le décodeur 
+// Decoded text cursor position (within decode area)
+int posH = 10;
+int posV = DECODE_AREA_Y + 2;
+
+//-----------------------------utilisé par le décodeur
 float Diff = 0.2 ;
 float Marge = 0.21 ;           // différence entre bin analysé et bin exterieur (~ noise )
-float y = 0.2 ;               // niveau de bruit 
+float y = 0.2 ;               // niveau de bruit
 float x = 0 ;                 // valeur du bin mesuré_désiré)
 
  //-------------------------------Utilisé par myFFT
  #define FFT_SIZE 1024                                    // Valeur FFT
- #define WATERFALL_ROW_COUNT 1                           // nombre de lignes 
+ #define WATERFALL_ROW_COUNT 1                           // nombre de lignes
+
+//------------------------------- Menu UI
+#define NUM_OUTPUTS 4
+#define NUM_SOURCES 9
+
+const char* outputNames[NUM_OUTPUTS] = {
+  "Out Left",
+  "Out Right",
+  "Out PWM 1",
+  "Out PWM 2"
+};
+
+const char* sourceNames[NUM_SOURCES] = {
+  "POWER",
+  "I_SAMPLES",
+  "Q_SAMPLES",
+  "PHASE",
+  "SUBSAMP",
+  "DETECT",
+  "UNFILT_P",
+  "BESSEL",
+  "PRE"
+};
+
+// Source index constants (matching #defines)
+const int sourceIndex[NUM_SOURCES] = {
+  POWER, I_SAMPLES, Q_SAMPLES, PHASE_SAMPLES,
+  SUBSAMPLE_TICKS, DETECTION_SAMPLES, UNFILTERED_POWER,
+  BESSEL, PRE
+};
+
+// Current source selection for each output (index into sourceNames)
+int outputSourceSel[NUM_OUTPUTS] = { BESSEL, POWER, SUBSAMPLE_TICKS, UNFILTERED_POWER };
+
+// Menu state
+int menuSelectedRow = 0;           // which output function is highlighted (0..3)
+bool menuEditMode = false;         // true = editing parameter value for selected row
 
 
- 
 
 // ----- binary morse tree
 const char Symbol[] =
@@ -108,9 +152,6 @@ ILI9341_t3n tft = ILI9341_t3n(TFT_CS, TFT_DC, TFT_RST, TFT_MOSI, TFT_SCLK );
 
 //-------------------------------gestion encodeur
 
-boolean Etat ;             // memoire poussoir encodeur
-volatile int oldStep;
-volatile int8_t Step;
 volatile int8_t Pos_enc = 0;                                    // position encodeur
 volatile int8_t old_Pos_enc = 0;
 
@@ -120,10 +161,9 @@ Button tunesw = Button();
 using namespace EncoderTool;                         // switch rotatif
 Encoder encoder;
 
-const short LED = 5;     
+const short LED = 5;
 
-#define VERSION "decodeur CW coherent"
-#define DATE "02 01 2026"
+#define VERSION "1.1 2026-02-01 16:03"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -133,26 +173,24 @@ const int myInput = AUDIO_INPUT_LINEIN;                 // entrée connecteur 10
 
 
 
-// GUItool: begin automatically generated code
 AudioInputI2S                      I2s1;           //xy=89,393
-//AudioAnalyzeFFT1024_IQ_F32         myFFT;          //xy=336,140
+
 AudioCoherentDemod4x_F32           CW_In;      //xy=474,405
 AudioAnalyzeNoteFrequency          notefreq1 ;
 AudioConvert_I16toF32              cnvrtI2F0 ;
-AudioConvert_F32toI16              cnvrtF2I0 ;
-AudioConvert_F32toI16              cnvrtF2I1 ;
+AudioConvert_F32toI16              cnvrtF2I0 ;    // Out Left converter
+AudioConvert_F32toI16              cnvrtF2I1 ;    // Out Right converter
+AudioConvert_F32toI16              cnvrtF2I2 ;    // Out PWM 1 converter
+AudioConvert_F32toI16              cnvrtF2I3 ;    // Out PWM 2 converter
 AudioOutputI2S                     I2s2;           //xy=1288,393
-AudioConnection              patchCord1(I2s1, 1, notefreq1,0);                // en 16 bits utilisé pour test 
+AudioOutputPWM                     pwmOut(22, 23); // PWM output: pin 22 = PWM 1, pin 23 = PWM 2
+AudioConnection              patchCord1(I2s1, 1, notefreq1,0);                // en 16 bits utilisé pour test
 AudioConnection              patchCord2(I2s1, 1, cnvrtI2F0,0);                   // 16 bits vers Float32
 
 AudioConnection_F32          patchCord3(cnvrtI2F0, 0, CW_In, 0);                 // en 32 bits décodage de la tonalité
 
-//AudioConnection_F32          patchCord4(cnvrtI2F0, 0, myFFT, 0);                 // en 32 bits
-//AudioConnection_F32          patchCord5(cnvrtI2F0, 0, myFFT, 1);                 // en 32 bits
-
-
-AudioMixer9_F32              output0Selector;
-AudioMixer9_F32              output1Selector;
+// 4 output selectors: Out Left, Out Right, Out PWM 1, Out PWM 2
+AudioMixer9_F32              outputSelector[NUM_OUTPUTS];
 
 #define POWER 0
 #define I_SAMPLES 1
@@ -164,37 +202,79 @@ AudioMixer9_F32              output1Selector;
 #define BESSEL 7
 #define PRE 8
 
-AudioConnection_F32          connectDecoderOutputChannel00(CW_In, POWER, output0Selector, POWER);
-AudioConnection_F32          connectDecoderOutputChannel01(CW_In, I_SAMPLES, output0Selector, I_SAMPLES);
-AudioConnection_F32          connectDecoderOutputChannel02(CW_In, Q_SAMPLES, output0Selector, Q_SAMPLES);
-AudioConnection_F32          connectDecoderOutputChannel03(CW_In, PHASE_SAMPLES, output0Selector, PHASE_SAMPLES);
-AudioConnection_F32          connectDecoderOutputChannel04(CW_In, SUBSAMPLE_TICKS, output0Selector, SUBSAMPLE_TICKS);
-AudioConnection_F32          connectDecoderOutputChannel05(CW_In, DETECTION_SAMPLES, output0Selector, DETECTION_SAMPLES);
-AudioConnection_F32          connectDecoderOutputChannel06(CW_In, UNFILTERED_POWER, output0Selector, UNFILTERED_POWER);
-AudioConnection_F32          connectDecoderOutputChannel07(CW_In, BESSEL, output0Selector, BESSEL);
-AudioConnection_F32          connectDecoderOutputChannel08(CW_In, PRE, output0Selector, PRE);
+// Connect all 9 demodulator outputs to each of the 4 selectors
+AudioConnection_F32          cDS00(CW_In, POWER, outputSelector[0], POWER);
+AudioConnection_F32          cDS01(CW_In, I_SAMPLES, outputSelector[0], I_SAMPLES);
+AudioConnection_F32          cDS02(CW_In, Q_SAMPLES, outputSelector[0], Q_SAMPLES);
+AudioConnection_F32          cDS03(CW_In, PHASE_SAMPLES, outputSelector[0], PHASE_SAMPLES);
+AudioConnection_F32          cDS04(CW_In, SUBSAMPLE_TICKS, outputSelector[0], SUBSAMPLE_TICKS);
+AudioConnection_F32          cDS05(CW_In, DETECTION_SAMPLES, outputSelector[0], DETECTION_SAMPLES);
+AudioConnection_F32          cDS06(CW_In, UNFILTERED_POWER, outputSelector[0], UNFILTERED_POWER);
+AudioConnection_F32          cDS07(CW_In, BESSEL, outputSelector[0], BESSEL);
+AudioConnection_F32          cDS08(CW_In, PRE, outputSelector[0], PRE);
 
-AudioConnection_F32          connectDecoderOutputChannel10(CW_In, POWER, output1Selector, POWER);
-AudioConnection_F32          connectDecoderOutputChannel11(CW_In, I_SAMPLES, output1Selector, I_SAMPLES);
-AudioConnection_F32          connectDecoderOutputChannel12(CW_In, Q_SAMPLES, output1Selector, Q_SAMPLES);
-AudioConnection_F32          connectDecoderOutputChannel13(CW_In, PHASE_SAMPLES, output1Selector, PHASE_SAMPLES);
-AudioConnection_F32          connectDecoderOutputChannel14(CW_In, SUBSAMPLE_TICKS, output1Selector, SUBSAMPLE_TICKS);
-AudioConnection_F32          connectDecoderOutputChannel15(CW_In, DETECTION_SAMPLES, output1Selector, DETECTION_SAMPLES);
-AudioConnection_F32          connectDecoderOutputChannel16(CW_In, UNFILTERED_POWER, output1Selector, UNFILTERED_POWER);
-AudioConnection_F32          connectDecoderOutputChannel17(CW_In, BESSEL, output1Selector, BESSEL);
-AudioConnection_F32          connectDecoderOutputChannel18(CW_In, PRE, output1Selector, PRE);
+AudioConnection_F32          cDS10(CW_In, POWER, outputSelector[1], POWER);
+AudioConnection_F32          cDS11(CW_In, I_SAMPLES, outputSelector[1], I_SAMPLES);
+AudioConnection_F32          cDS12(CW_In, Q_SAMPLES, outputSelector[1], Q_SAMPLES);
+AudioConnection_F32          cDS13(CW_In, PHASE_SAMPLES, outputSelector[1], PHASE_SAMPLES);
+AudioConnection_F32          cDS14(CW_In, SUBSAMPLE_TICKS, outputSelector[1], SUBSAMPLE_TICKS);
+AudioConnection_F32          cDS15(CW_In, DETECTION_SAMPLES, outputSelector[1], DETECTION_SAMPLES);
+AudioConnection_F32          cDS16(CW_In, UNFILTERED_POWER, outputSelector[1], UNFILTERED_POWER);
+AudioConnection_F32          cDS17(CW_In, BESSEL, outputSelector[1], BESSEL);
+AudioConnection_F32          cDS18(CW_In, PRE, outputSelector[1], PRE);
 
-AudioConnection_F32          connectOutput0(output0Selector,0,cnvrtF2I0,0);
-AudioConnection_F32          connectOutput1(output1Selector,0,cnvrtF2I1,0);
+AudioConnection_F32          cDS20(CW_In, POWER, outputSelector[2], POWER);
+AudioConnection_F32          cDS21(CW_In, I_SAMPLES, outputSelector[2], I_SAMPLES);
+AudioConnection_F32          cDS22(CW_In, Q_SAMPLES, outputSelector[2], Q_SAMPLES);
+AudioConnection_F32          cDS23(CW_In, PHASE_SAMPLES, outputSelector[2], PHASE_SAMPLES);
+AudioConnection_F32          cDS24(CW_In, SUBSAMPLE_TICKS, outputSelector[2], SUBSAMPLE_TICKS);
+AudioConnection_F32          cDS25(CW_In, DETECTION_SAMPLES, outputSelector[2], DETECTION_SAMPLES);
+AudioConnection_F32          cDS26(CW_In, UNFILTERED_POWER, outputSelector[2], UNFILTERED_POWER);
+AudioConnection_F32          cDS27(CW_In, BESSEL, outputSelector[2], BESSEL);
+AudioConnection_F32          cDS28(CW_In, PRE, outputSelector[2], PRE);
 
-AudioConnection              connectConverter0ToOuput(cnvrtF2I0, 0, I2s2, 0);
-AudioConnection              connectConverter1ToOuput(cnvrtF2I1, 0, I2s2, 1);
+AudioConnection_F32          cDS30(CW_In, POWER, outputSelector[3], POWER);
+AudioConnection_F32          cDS31(CW_In, I_SAMPLES, outputSelector[3], I_SAMPLES);
+AudioConnection_F32          cDS32(CW_In, Q_SAMPLES, outputSelector[3], Q_SAMPLES);
+AudioConnection_F32          cDS33(CW_In, PHASE_SAMPLES, outputSelector[3], PHASE_SAMPLES);
+AudioConnection_F32          cDS34(CW_In, SUBSAMPLE_TICKS, outputSelector[3], SUBSAMPLE_TICKS);
+AudioConnection_F32          cDS35(CW_In, DETECTION_SAMPLES, outputSelector[3], DETECTION_SAMPLES);
+AudioConnection_F32          cDS36(CW_In, UNFILTERED_POWER, outputSelector[3], UNFILTERED_POWER);
+AudioConnection_F32          cDS37(CW_In, BESSEL, outputSelector[3], BESSEL);
+AudioConnection_F32          cDS38(CW_In, PRE, outputSelector[3], PRE);
+
+// Connect selectors to converters
+AudioConnection_F32          connectSel0(outputSelector[0], 0, cnvrtF2I0, 0);
+AudioConnection_F32          connectSel1(outputSelector[1], 0, cnvrtF2I1, 0);
+AudioConnection_F32          connectSel2(outputSelector[2], 0, cnvrtF2I2, 0);
+AudioConnection_F32          connectSel3(outputSelector[3], 0, cnvrtF2I3, 0);
+
+// Connect converters to hardware outputs
+AudioConnection              connectI2SLeft(cnvrtF2I0, 0, I2s2, 0);   // Out Left
+AudioConnection              connectI2SRight(cnvrtF2I1, 0, I2s2, 1);  // Out Right
+AudioConnection              connectPWM1(cnvrtF2I2, 0, pwmOut, 0);    // Out PWM 1
+AudioConnection              connectPWM2(cnvrtF2I3, 0, pwmOut, 1);    // Out PWM 2
 
 AudioControlSGTL5000              sgtl5000_1;    //xy=503,960
 // GUItool: end automatically generated code
 
 
 
+
+//------------------------------- channel selection helpers
+
+void selectOutputChannel(int outputIdx, int newSourceIdx) {
+  for (int i = 0; i < 9; i++) {
+    outputSelector[outputIdx].gain(i, 0.0f);
+  }
+  outputSelector[outputIdx].gain(newSourceIdx, 1.0f);
+}
+
+void applyAllOutputSelections() {
+  for (int i = 0; i < NUM_OUTPUTS; i++) {
+    selectOutputChannel(i, outputSourceSel[i]);
+  }
+}
 
 //------------------------------------------------------------ setup()
 
@@ -205,36 +285,22 @@ void setup() {
   SetI2SFreq(CW_In.get_f_sampling());
   //---------------------------------------------------------configure paramètres SGTL5000
   sgtl5000_1.enable();
-  AudioMemory(100);                                       // pour le 16 bits 
-  AudioMemory_F32(200);                                   // pour le 32 bits 
+  AudioMemory(100);                                       // pour le 16 bits
+  AudioMemory_F32(200);                                   // pour le 32 bits
   sgtl5000_1.inputSelect(myInput );
   sgtl5000_1.volume(0.6);
-  sgtl5000_1.lineInLevel (11);                            // 0 à 15   15: 0.24Vpp    11: 0.48Vpp   // avoid saturation !
+  sgtl5000_1.lineInLevel (0);                            // 0 à 15   15: 0.24Vpp    11: 0.48Vpp  0: 2.8Vpp (1V rms) // avoid saturation !
   sgtl5000_1.lineOutLevel (13);                           // 13 to 31     13 = maximum
-  // myFFT.setOutputType(0);                                 // type de donnée FFT
-  // myFFT.setXAxis(0X01);                                   // sens de lecture 
-  // myFFT.setNAverage(5);
-  // myFFT.windowFunction(AudioWindowHanning1024);
 
-#if Debug // preselect channels of interest
-    selectChannel0(SUBSAMPLE_TICKS);
-    selectChannel1(UNFILTERED_POWER);
-#else
-    selectChannel0(BESSEL);  // audio feedback
-    selectChannel1(POWER);
-#endif
+  applyAllOutputSelections();
 
   notefreq1.begin(0.08f);
-  
+
   encoder.begin(3,0);                                          // deux fils de l'encodeur partie rotative
 
   tunesw.attach(TUNESW,INPUT_PULLUP);                           // gestion poussoir switch rotatif
   tunesw.interval(5);
   tunesw.setPressedState(LOW);
-
-// initialize encoder
-  Step = Marge * 100;
-  oldStep = Step;
 
   // ---------------------------------------------------------- configure TFT display
   tft.begin();
@@ -247,19 +313,16 @@ void setup() {
   tft.setCursor(30,50);
   tft.print(VERSION);
   tft.setCursor(30, 93);
-  tft.print(DATE);
-  tft.setCursor(30, 136);
   tft.print(AUTEUR);
   delay(3000);
   tft.fillScreen(ILI9341_BLACK);
-  tft.setCursor(100, 10);
-  tft.setTextColor(ILI9341_ORANGE);
-  displayStatus();
+  drawMenu();
+  displayVersion();
 
   // ------------------------------------------------------------ configure LED
   pinMode(LED, OUTPUT);                               // signal/tuning indicator
   digitalWrite(LED, LOW);
- //-------------------------------------------------------------- pour le décodage        
+ //-------------------------------------------------------------- pour le décodage
   Started = false;
   Measuring = false;
 }
@@ -270,129 +333,117 @@ void setup() {
 void loop() {
   sample();                                                  // ----- check for tone
 
-  if (encoder.valueChanged()) {                                   // l'encodeur a été tourné ?
-    if (Debug) {
-      Serial.println("encodeur tourne") ;
-    }
-    Pas();                                                      // OK On change 
+  if (encoder.valueChanged()) {
+    Pos_enc = encoder.getValue();
+    int direction = (Pos_enc > old_Pos_enc) ? 1 : -1;
+    old_Pos_enc = Pos_enc;
+    handleEncoder(direction);
   }
 
   tunesw.update();
-  if(tunesw.pressed()){
-    updateStatus ();
+  if (tunesw.pressed()) {
+    handleButton();
   }
   decode();
 }
 
 
-/***********************************gestion de l'encodeur*****************************************************/
+/***********************************gestion de l'encodeur et menu*****************************************************/
 
-void Pas() 
-{
-  Pos_enc = (encoder.getValue());
-  if (Debug) {
-    Serial.println (Pos_enc);
-  }
-  if ( Pos_enc > old_Pos_enc ) { 
-    Step = Step+1;
-    oldStep=Step-1;
-    old_Pos_enc= Pos_enc;
-    if (Step >= 100) {                              // valeur max encodeur
-      Step = 100 ;
-    }
-    set_Choix_Rot();    
+void handleEncoder(int direction) {
+  if (!menuEditMode) {
+    // Navigation mode: rotate selects which output row is highlighted
+    menuSelectedRow += direction;
+    if (menuSelectedRow < 0) menuSelectedRow = NUM_OUTPUTS - 1;
+    if (menuSelectedRow >= NUM_OUTPUTS) menuSelectedRow = 0;
   } else {
-    Step = Step - 1;
-    oldStep=Step+1;
-    old_Pos_enc= Pos_enc;
-    if (Step <= 1) {                                //valeur min encodeur
-      Step = 1;
-    }
-    set_Choix_Rot();
+    // Edit mode: rotate changes the source for the selected output (circular)
+    int src = outputSourceSel[menuSelectedRow] + direction;
+    if (src < 0) src = NUM_SOURCES - 1;
+    if (src >= NUM_SOURCES) src = 0;
+    outputSourceSel[menuSelectedRow] = src;
+    selectOutputChannel(menuSelectedRow, src);
+  }
+  drawMenu();
+  delay(80);
+}
+
+void handleButton() {
+  menuEditMode = !menuEditMode;
+  drawMenu();
+  if (Debug) {
+    Serial.print("Menu edit mode: ");
+    Serial.println(menuEditMode ? "ON" : "OFF");
   }
 }
 
-void selectChannel0(int newSelectedChannel){
-  for (int i = 0; i < 9; i++){ // deselect all channels
-    output0Selector.gain(i, 0.0f);
+//------------------------------------- gestion de l'affichage
+
+void drawMenuRow(int row) {
+  int y = MENU_AREA_Y + row * MENU_LINE_HEIGHT;
+  bool isSelected = (row == menuSelectedRow);
+
+  tft.setFont(Arial_14);
+
+  // Clear the row
+  tft.fillRect(0, y, SCREEN_WIDTH, MENU_LINE_HEIGHT, ILI9341_BLACK);
+
+  // Draw function name on the left
+  if (isSelected) {
+    // Reverse video for selected row
+    tft.fillRect(0, y, 100, MENU_LINE_HEIGHT,
+                 menuEditMode ? ILI9341_YELLOW : ILI9341_WHITE);
+    tft.setTextColor(ILI9341_BLACK);
+  } else {
+    tft.setTextColor(ILI9341_ORANGE, ILI9341_BLACK);
   }
-  output0Selector.gain(newSelectedChannel, 1.0f);
+  tft.setCursor(4, y + 3);
+  tft.print(outputNames[row]);
+
+  // Draw current source value on the same line, right side
+  if (isSelected && menuEditMode) {
+    tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+  } else {
+    tft.setTextColor(ILI9341_GREEN, ILI9341_BLACK);
+  }
+  tft.setCursor(110, y + 3);
+  tft.print(sourceNames[outputSourceSel[row]]);
 }
 
-
-void selectChannel1(int newSelectedChannel){
-  for (int i = 0; i < 9; i++){ // deselect all channels
-    output1Selector.gain(i, 0.0f);
+void drawMenu() {
+  for (int i = 0; i < NUM_OUTPUTS; i++) {
+    drawMenuRow(i);
   }
-  output1Selector.gain(newSelectedChannel, 1.0f);
 }
 
-void set_Choix_Rot()
+void displayVersion() {
+  tft.setFont(Arial_14);
+  tft.fillRect(0, VERSION_LINE_Y, SCREEN_WIDTH, 18, ILI9341_BLACK);
+  tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
+  tft.setCursor(4, VERSION_LINE_Y);
+  tft.print("CW decod. ");
+  tft.print(VERSION);
+}
+
+void sendToTFT1(char character)
 {
-  Marge = Step/100.0; // old
-  selectedChannel1 = Step % 9;
-  selectChannel1(selectedChannel1);
-  displayBottom();
-  delay(100);                              // Pour éviter les appuis multiples 
-}
-
-//------------------------------------- gestion de l'affichage                                           
-char  statsMessage[40];
-
-
-void  updateStatus() 
-{
-  sprintf(statsMessage,"freq offset: %7.2f", CW_In.getFrequencyOffsetHz());
-  displayStatus();
-} 
-
-
-void sendToTFT1(char character)                   
-{
-  #define MAX_TEXT_V 180
-  posH = posH+15;
-  if(posH > SCREEN_WIDTH - 20) // next line
-  {
-    //tft.fillScreen(ILI9341_BLACK);
-    updateStatus();
-    posH=10;
-    posV = posV+20;
+  #define MAX_DECODE_H (SCREEN_WIDTH - 20)
+  #define MAX_DECODE_V (DECODE_AREA_Y + DECODE_AREA_HEIGHT - 20)
+  posH = posH + 15;
+  if (posH > MAX_DECODE_H) {
+    posH = 10;
+    posV = posV + 20;
   }
-  tft.setCursor(posH,posV);
+  if (posV > MAX_DECODE_V) {
+    // Wrap around: clear decode area
+    posH = 10;
+    posV = DECODE_AREA_Y + 2;
+    tft.fillRect(0, DECODE_AREA_Y, SCREEN_WIDTH, DECODE_AREA_HEIGHT, ILI9341_BLACK);
+  }
+  tft.setFont(Arial_14);
+  tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+  tft.setCursor(posH, posV);
   tft.print(Symbol[Index]);
-  if(posV > MAX_TEXT_V){
-    posH=10;
-    posV=10;
-    tft.fillScreen(ILI9341_BLACK);
-    displayBottom();
-  }
-}
-
-void displayStatus(){
-  tft.setFont(Arial_14);
-  tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK); 
-  tft.setCursor(20, 200);
-  tft.print(statsMessage);
-}
-
-void displayBottom(){
-  displayStatus();
-  tft.setFont(Arial_14);
-  tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK); 
-  tft.setCursor(20, 220);
-#if 0
-  tft.print("Marge ") ;
-  tft.print(Marge) ;
-#else
-  tft.print("Sel: ") ;
-  tft.print(detectorOutputChannelNames[selectedChannel1]) ;
-#endif
-  tft.setCursor(200, 220);
-  tft.print(Step);
-  tft.setCursor(250, 220);
-  tft.print("f:") ;
-  tft.print(CW_In.get_lowpass_cutoff());
-  tft.print(" Hz") ; 
 }
 
 // -------------------------------------------------- sample()  Décodage d'un élément de caractère
