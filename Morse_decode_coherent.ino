@@ -67,12 +67,16 @@ char DisplayLine[num_chars+1];
 #define SCOPE_AREA_HEIGHT  (VERSION_LINE_Y - SCOPE_AREA_Y)
 #define SCOPE_MS_PER_PIXEL 10
 #define SCOPE_WIPE_AHEAD   10
+#define SCOPE_X_OFFSET     20
+#define SCOPE_WIDTH        (SCREEN_WIDTH - SCOPE_X_OFFSET)
 #define PIN_INPUT_1        14
 #define PIN_INPUT_2        15
-#define SCOPE_PIN14_HIGH   (SCOPE_AREA_Y + 14)
+#define SCOPE_PIN14_HIGH   (SCOPE_AREA_Y + 9)
 #define SCOPE_PIN14_LOW    (SCOPE_PIN14_HIGH + 10)
 #define SCOPE_PIN15_HIGH   (SCOPE_PIN14_LOW + 15)
 #define SCOPE_PIN15_LOW    (SCOPE_PIN15_HIGH + 10)
+#define SCOPE_DETECT_HIGH  (SCOPE_PIN15_LOW + 15)
+#define SCOPE_DETECT_LOW   (SCOPE_DETECT_HIGH + 10)
 
 // Decoded text cursor position (within decode area)
 int posH = 10;
@@ -84,7 +88,11 @@ unsigned long scopeLastUpdate = 0;
 bool scopePin14Prev = false;
 bool scopePin14Level = false;
 bool scopePin15Level = false;
+bool scopeDetectLevel = false;
 bool scopeActive = false;
+bool scopeSerialRequested = false;
+bool scopeSerialActive = false;
+unsigned long scopeBarFlashTime = 0;
 
 //-----------------------------utilisé par le décodeur
 float Diff = 0.2 ;
@@ -98,6 +106,7 @@ float x = 0 ;                 // valeur du bin mesuré_désiré)
 
 //------------------------------- Menu UI
 #define NUM_OUTPUTS 4
+#define NUM_MENU_ROWS 5
 #define NUM_SOURCES 9
 
 const char* outputNames[NUM_OUTPUTS] = {
@@ -183,7 +192,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.1.2 2026-02-07 23:18"
+#define VERSION "1.2 2026-02-07 23:40"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -355,6 +364,9 @@ void setup() {
 // updateOscilloscope()
 // ----------------------------
 void updateOscilloscope() {
+  // Refresh scope bar (yellow flash timeout)
+  drawScopeBar();
+
   // Read pin 14 and detect rising edge (trigger)
   bool pin14Now = digitalRead(PIN_INPUT_1);
   if (pin14Now && !scopePin14Prev) {
@@ -364,11 +376,21 @@ void updateOscilloscope() {
     scopeLastUpdate = millis();
     scopePin14Level = pin14Now;
     scopePin15Level = digitalRead(PIN_INPUT_2);
+    scopeDetectLevel = Tone;
+    // Start serial output if requested
+    if (scopeSerialRequested) {
+      scopeSerialRequested = false;
+      scopeSerialActive = true;
+      Serial.println("Time\tSync\tTone\tDetect");
+    }
   }
   scopePin14Prev = pin14Now;
 
   if (!scopeActive) return;
-  if (scopeX >= SCREEN_WIDTH) return;  // wait for next trigger
+  if (scopeX >= SCOPE_WIDTH) {
+    scopeSerialActive = false;
+    return;  // wait for next trigger
+  }
 
   unsigned long now = millis();
   if (now - scopeLastUpdate < SCOPE_MS_PER_PIXEL) return;
@@ -377,42 +399,57 @@ void updateOscilloscope() {
   // Read current levels
   bool newPin14 = digitalRead(PIN_INPUT_1);
   bool newPin15 = digitalRead(PIN_INPUT_2);
+  bool newDetect = Tone;
+
+  // Serial output if active
+  if (scopeSerialActive) {
+    Serial.print(now);
+    Serial.print('\t');
+    Serial.print(newPin14 ? 1 : 0);
+    Serial.print('\t');
+    Serial.print(newPin15 ? 1 : 0);
+    Serial.print('\t');
+    Serial.println(newDetect ? 1 : 0);
+  }
 
   // Wipe ahead: clear columns in front of current position
-  int wipeEnd = min(scopeX + SCOPE_WIPE_AHEAD, SCREEN_WIDTH);
-  if (scopeX < wipeEnd) {
-    tft.fillRect(scopeX, SCOPE_AREA_Y, wipeEnd - scopeX, SCOPE_AREA_HEIGHT, ILI9341_BLACK);
+  int screenX = scopeX + SCOPE_X_OFFSET;
+  int wipeEnd = min(screenX + SCOPE_WIPE_AHEAD, SCREEN_WIDTH);
+  if (screenX < wipeEnd) {
+    tft.fillRect(screenX, SCOPE_AREA_Y, wipeEnd - screenX, SCOPE_AREA_HEIGHT, ILI9341_BLACK);
   }
 
   // Draw pin 14 trace (green)
   int y14 = newPin14 ? SCOPE_PIN14_HIGH : SCOPE_PIN14_LOW;
-  tft.drawPixel(scopeX, y14, ILI9341_GREEN);
-
-  // Draw vertical transition line for pin 14 if level changed
+  tft.drawPixel(screenX, y14, ILI9341_GREEN);
   if (newPin14 != scopePin14Level) {
-    int yFrom = scopePin14Level ? SCOPE_PIN14_HIGH : SCOPE_PIN14_LOW;
-    int yTo   = newPin14        ? SCOPE_PIN14_HIGH : SCOPE_PIN14_LOW;
-    int yMin  = min(yFrom, yTo);
-    int yMax  = max(yFrom, yTo);
-    tft.drawFastVLine(scopeX, yMin, yMax - yMin + 1, ILI9341_GREEN);
+    int yMin = min(SCOPE_PIN14_HIGH, SCOPE_PIN14_LOW);
+    int yMax = max(SCOPE_PIN14_HIGH, SCOPE_PIN14_LOW);
+    tft.drawFastVLine(screenX, yMin, yMax - yMin + 1, ILI9341_GREEN);
   }
 
   // Draw pin 15 trace (cyan)
   int y15 = newPin15 ? SCOPE_PIN15_HIGH : SCOPE_PIN15_LOW;
-  tft.drawPixel(scopeX, y15, ILI9341_CYAN);
-
-  // Draw vertical transition line for pin 15 if level changed
+  tft.drawPixel(screenX, y15, ILI9341_CYAN);
   if (newPin15 != scopePin15Level) {
-    int yFrom = scopePin15Level ? SCOPE_PIN15_HIGH : SCOPE_PIN15_LOW;
-    int yTo   = newPin15        ? SCOPE_PIN15_HIGH : SCOPE_PIN15_LOW;
-    int yMin  = min(yFrom, yTo);
-    int yMax  = max(yFrom, yTo);
-    tft.drawFastVLine(scopeX, yMin, yMax - yMin + 1, ILI9341_CYAN);
+    int yMin = min(SCOPE_PIN15_HIGH, SCOPE_PIN15_LOW);
+    int yMax = max(SCOPE_PIN15_HIGH, SCOPE_PIN15_LOW);
+    tft.drawFastVLine(screenX, yMin, yMax - yMin + 1, ILI9341_CYAN);
+  }
+
+  // Draw detection trace (magenta)
+  int yDet = newDetect ? SCOPE_DETECT_HIGH : SCOPE_DETECT_LOW;
+  tft.drawPixel(screenX, yDet, ILI9341_MAGENTA);
+  if (newDetect != scopeDetectLevel) {
+    int yMin = min(SCOPE_DETECT_HIGH, SCOPE_DETECT_LOW);
+    int yMax = max(SCOPE_DETECT_HIGH, SCOPE_DETECT_LOW);
+    tft.drawFastVLine(screenX, yMin, yMax - yMin + 1, ILI9341_MAGENTA);
   }
 
   // Update stored levels
   scopePin14Level = newPin14;
   scopePin15Level = newPin15;
+  scopeDetectLevel = newDetect;
 
   scopeX++;
 }
@@ -443,10 +480,10 @@ void loop() {
 
 void handleEncoder(int direction) {
   if (!menuEditMode) {
-    // Navigation mode: rotate selects which output row is highlighted
+    // Navigation mode: rotate selects which row is highlighted
     menuSelectedRow += direction;
-    if (menuSelectedRow < 0) menuSelectedRow = NUM_OUTPUTS - 1;
-    if (menuSelectedRow >= NUM_OUTPUTS) menuSelectedRow = 0;
+    if (menuSelectedRow < 0) menuSelectedRow = NUM_MENU_ROWS - 1;
+    if (menuSelectedRow >= NUM_MENU_ROWS) menuSelectedRow = 0;
   } else {
     // Edit mode: rotate changes the source for the selected output (circular)
     int src = outputSourceSel[menuSelectedRow] + direction;
@@ -460,6 +497,16 @@ void handleEncoder(int direction) {
 }
 
 void handleButton() {
+  if (menuSelectedRow == 4) {
+    // Scope serial output: request one sweep of serial data
+    scopeSerialRequested = true;
+    scopeBarFlashTime = millis();
+    drawScopeBar();
+    if (Debug) {
+      Serial.println("Scope serial requested");
+    }
+    return;
+  }
   menuEditMode = !menuEditMode;
   drawMenu();
   if (Debug) {
@@ -504,6 +551,16 @@ void drawMenuRow(int row) {
 void drawMenu() {
   for (int i = 0; i < NUM_OUTPUTS; i++) {
     drawMenuRow(i);
+  }
+  drawScopeBar();
+}
+
+void drawScopeBar() {
+  if (menuSelectedRow == 4) {
+    uint16_t color = (millis() - scopeBarFlashTime < 200) ? ILI9341_YELLOW : ILI9341_WHITE;
+    tft.fillRect(0, SCOPE_AREA_Y, SCOPE_X_OFFSET, SCOPE_AREA_HEIGHT, color);
+  } else {
+    tft.fillRect(0, SCOPE_AREA_Y, SCOPE_X_OFFSET, SCOPE_AREA_HEIGHT, ILI9341_BLACK);
   }
 }
 

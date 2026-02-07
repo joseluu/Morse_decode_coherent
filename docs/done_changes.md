@@ -1,5 +1,25 @@
 # Done Changes
 
+## 1.2 2026-02-07 23:40 - Oscilloscope improvement (feature 2.1)
+
+### 3rd trace
+- Added detection trace (magenta) showing the Tone/DETECTION_SAMPLES state
+- Rebalanced vertical layout: 3 traces × 10px with 15px gaps, 9px top/bottom padding
+
+### Scope bar (5th menu item)
+- Extended menu navigation to 5 rows (NUM_MENU_ROWS = 5)
+- Row 5 controls the oscilloscope: white bar (20px) on the left of the scope area when selected
+- Button press on row 5 flashes the bar yellow and requests serial output for the next sweep
+
+### Serial CSV output
+- After pressing scope button, the next sweep outputs tab-separated data on serial
+- Header: `Time\tSync\tTone\tDetect`
+- One line per 10ms with: timestamp, pin 14 (0/1), pin 15 (0/1), detection (0/1)
+- Output stops at end of sweep (one interval only)
+
+### Display offset
+- Scope traces shifted 20px right (x=20..319) to make room for the scope bar
+
 ## 1.1.2 2026-02-07 23:18 - Sweep rate changed to 10ms/pixel
 
 - Changed SCOPE_MS_PER_PIXEL from 20 to 10 (full sweep = 3.2s)

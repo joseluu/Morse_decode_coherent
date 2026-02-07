@@ -15,11 +15,13 @@ A rotary encoder navigates the menu; pushing it enters/exits parameter edit mode
 
 ### Oscilloscope Display
 
-Between the menu and the version line, a simple oscilloscope view shows the digital levels of pins 14 and 15 vs time:
+Between the menu and the version line, a simple oscilloscope view shows digital signal levels vs time:
 - **Pin 14** (green): trigger source + trace. A rising edge resets the sweep to the left.
 - **Pin 15** (cyan): second trace.
-- Sweep rate: 10ms/pixel, full screen = 3.2 seconds.
+- **Detection** (magenta): tone detection state from the coherent demodulator.
+- Sweep rate: 10ms/pixel, 300 pixels wide = 3.0 seconds.
 - Vertical transition lines are drawn when a signal changes level.
+- A 5th menu row (selectable via encoder) controls the scope: pressing the button outputs one sweep of tab-separated serial data (`Time Sync Tone Detect`).
 
 ### Teensy 4.0 Pin usage
 
