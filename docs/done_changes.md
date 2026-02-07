@@ -1,5 +1,16 @@
 # Done Changes
 
+## 1.3 2026-02-07 23:56 - Serial command language (feature 3)
+
+- Added serial command interface at 115200 baud
+- Commands: `help`, `status`, `set out<N> <source>`, `set marge <value>`, `scope`
+- `help` prints available commands and source names
+- `status` prints all 4 output assignments and current Marge threshold
+- `set out0 BESSEL` sets Out Left to BESSEL, updates display immediately
+- `set marge 0.3` changes detection threshold
+- `scope` triggers CSV serial output on next sweep (same as button press on row 5)
+- Non-blocking line reader processes serial input without impacting audio
+
 ## 1.2 2026-02-07 23:40 - Oscilloscope improvement (feature 2.1)
 
 ### 3rd trace

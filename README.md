@@ -23,6 +23,15 @@ Between the menu and the version line, a simple oscilloscope view shows digital 
 - Vertical transition lines are drawn when a signal changes level.
 - A 5th menu row (selectable via encoder) controls the scope: pressing the button outputs one sweep of tab-separated serial data (`Time Sync Tone Detect`).
 
+### Serial Command Language
+
+Connect at 115200 baud. Available commands:
+- `help` — list commands and valid source names
+- `status` — show current output assignments and detection threshold
+- `set out<N> <source>` — assign source to output (e.g. `set out0 BESSEL`)
+- `set marge <value>` — set detection threshold (e.g. `set marge 0.3`)
+- `scope` — output next oscilloscope sweep as tab-separated CSV
+
 ### Teensy 4.0 Pin usage
 
 | Pin | Function | Notes |

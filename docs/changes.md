@@ -83,3 +83,9 @@ Every time pin 14 goes up, start from left displaying pin 14 level and pin 15 le
 Add a third oscilloscope trace to reflect the internal value of the signal DETECTION_SAMPLES.
 Make sure the oscilloscope function is lower priority than signal processing in the AudioCoherentDemod4x_F32 class functions.
 Shift oscilloscope display 20 pixel to the right. The left side is used for selecting the oscilloscope function, this will be a fifth selection after the 4 existing function, when selected let a white 20 pixel bar appear on the left of the display. When pressed, momentarily turn color to yellow as for the other functions, when released go back to white. After this function has been pressed, on the next scan interval and only for one interval, that is between 2 pin 14 going up, output every 10ms the sample values on the serial output, one line per 10ms with 4 values: time in ms, then the 3 values of 0 or 1 all separated by a tab. The output is preceded by a header "Time Sync Tone Detect"
+## 3. command language
+Design and implement a command language to be receive on the serial as input.
+The language is able to alter function values and to start serial output.
+Altered function values are reflected on the display.
+Command language includes a command "help" where the language is described on the serial output.
+Command language includes a command "status" where all the function values are output on the serial channel.

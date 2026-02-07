@@ -94,6 +94,11 @@ bool scopeSerialRequested = false;
 bool scopeSerialActive = false;
 unsigned long scopeBarFlashTime = 0;
 
+// Serial command buffer
+#define CMD_BUF_SIZE 64
+char cmdBuffer[CMD_BUF_SIZE];
+int cmdIndex = 0;
+
 //-----------------------------utilisé par le décodeur
 float Diff = 0.2 ;
 float Marge = 0.21 ;           // différence entre bin analysé et bin exterieur (~ noise )
@@ -192,7 +197,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.2 2026-02-07 23:40"
+#define VERSION "1.3 2026-02-07 23:56"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -455,6 +460,123 @@ void updateOscilloscope() {
 }
 
 // ----------------------------
+// Serial command language
+// ----------------------------
+
+int findSourceIndex(const char* name) {
+  for (int i = 0; i < NUM_SOURCES; i++) {
+    if (strcmp(name, sourceNames[i]) == 0) return i;
+  }
+  return -1;
+}
+
+void cmdHelp() {
+  Serial.println("Commands:");
+  Serial.println("  help                  - show this help");
+  Serial.println("  status                - show current settings");
+  Serial.println("  set out<N> <source>   - set output (0-3) to source");
+  Serial.println("  set marge <value>     - set detection threshold");
+  Serial.println("  scope                 - output next sweep as CSV");
+  Serial.print("Sources:");
+  for (int i = 0; i < NUM_SOURCES; i++) {
+    Serial.print(' ');
+    Serial.print(sourceNames[i]);
+  }
+  Serial.println();
+}
+
+void cmdStatus() {
+  for (int i = 0; i < NUM_OUTPUTS; i++) {
+    Serial.print(outputNames[i]);
+    Serial.print(": ");
+    Serial.println(sourceNames[outputSourceSel[i]]);
+  }
+  Serial.print("Marge: ");
+  Serial.println(Marge, 3);
+}
+
+void executeCommand(char* cmd) {
+  // Skip leading spaces
+  while (*cmd == ' ') cmd++;
+  // Remove trailing spaces/newlines
+  int len = strlen(cmd);
+  while (len > 0 && (cmd[len-1] == ' ' || cmd[len-1] == '\r' || cmd[len-1] == '\n')) {
+    cmd[--len] = '\0';
+  }
+  if (len == 0) return;
+
+  if (strcmp(cmd, "help") == 0) {
+    cmdHelp();
+  } else if (strcmp(cmd, "status") == 0) {
+    cmdStatus();
+  } else if (strcmp(cmd, "scope") == 0) {
+    scopeSerialRequested = true;
+    Serial.println("Scope serial requested");
+  } else if (strncmp(cmd, "set ", 4) == 0) {
+    char* arg = cmd + 4;
+    while (*arg == ' ') arg++;
+
+    if (strncmp(arg, "out", 3) == 0) {
+      // Parse: out<N> <source>
+      int outIdx = arg[3] - '0';
+      if (outIdx < 0 || outIdx >= NUM_OUTPUTS) {
+        Serial.println("Error: output index 0-3");
+        return;
+      }
+      char* srcName = arg + 4;
+      while (*srcName == ' ') srcName++;
+      int srcIdx = findSourceIndex(srcName);
+      if (srcIdx < 0) {
+        Serial.print("Error: unknown source '");
+        Serial.print(srcName);
+        Serial.println("'");
+        return;
+      }
+      outputSourceSel[outIdx] = srcIdx;
+      selectOutputChannel(outIdx, srcIdx);
+      drawMenu();
+      Serial.print(outputNames[outIdx]);
+      Serial.print(" -> ");
+      Serial.println(sourceNames[srcIdx]);
+    } else if (strncmp(arg, "marge ", 6) == 0) {
+      float val = atof(arg + 6);
+      if (val > 0.0f) {
+        Marge = val;
+        Serial.print("Marge = ");
+        Serial.println(Marge, 3);
+      } else {
+        Serial.println("Error: invalid value");
+      }
+    } else {
+      Serial.println("Error: unknown set parameter");
+    }
+  } else {
+    Serial.print("Unknown command: ");
+    Serial.println(cmd);
+    Serial.println("Type 'help' for commands");
+  }
+}
+
+void processSerialInput() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n' || c == '\r') {
+      if (cmdIndex > 0) {
+        cmdBuffer[cmdIndex] = '\0';
+        executeCommand(cmdBuffer);
+        cmdIndex = 0;
+      }
+    } else {
+      if (cmdIndex < CMD_BUF_SIZE - 1) {
+        cmdBuffer[cmdIndex++] = c;
+      } else {
+        cmdIndex = 0;  // overflow: discard
+      }
+    }
+  }
+}
+
+// ----------------------------
 // loop()
 // ----------------------------
 void loop() {
@@ -472,6 +594,7 @@ void loop() {
     handleButton();
   }
   updateOscilloscope();
+  processSerialInput();
   decode();
 }
 
