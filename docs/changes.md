@@ -76,3 +76,6 @@ Where each function is actually an output audio channel, Out Left is the left ch
     - PRE
 
 Where the sources correspond to waveforms output by AudioCoherentDemod4x_F32
+## 2. oscilloscope like user interface
+In the space between the 4 function menu and the last line, use as a graphical area where the value of the pin 14 and pin 15 vs time are going to be displayed.
+Every time pin 14 goes up, start from left displaying pin 14 level and pin 15 level vs time in this space going from left to right 20 ms per pixel, during progression towards right, wipe previous display 10 pixel in front. Separate vertically 0 and 1 levels by 10 pixels and separate the 2 traces by 15 pixels.

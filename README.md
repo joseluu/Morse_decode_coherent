@@ -13,17 +13,42 @@ The TFT display (320x240, ILI9341) is divided into three zones:
 
 A rotary encoder navigates the menu; pushing it enters/exits parameter edit mode where each output can be assigned one of 9 internal signal sources from the coherent demodulator.
 
-### Pin usage
-| Pin | Function |
-|-----|----------|
-| 0, 3 | Rotary encoder (rotation) |
-| 4 | Rotary encoder push button |
-| 1 | TFT RST |
-| 2 | TFT DC |
-| 5 | LED |
-| 10-13 | TFT SPI (CS, MOSI, MISO, SCLK) |
-| 22 | PWM audio output 1 |
-| 23 | PWM audio output 2 |
+### Oscilloscope Display
+
+Between the menu and the version line, a simple oscilloscope view shows the digital levels of pins 14 and 15 vs time:
+- **Pin 14** (green): trigger source + trace. A rising edge resets the sweep to the left.
+- **Pin 15** (cyan): second trace.
+- Sweep rate: 10ms/pixel, full screen = 3.2 seconds.
+- Vertical transition lines are drawn when a signal changes level.
+
+### Teensy 4.0 Pin usage
+
+| Pin | Function | Notes |
+|-----|----------|-------|
+| 0 | Encoder B | Rotary encoder rotation |
+| 1 | TFT RST | ILI9341 display reset |
+| 2 | TFT DC | ILI9341 data/command |
+| 3 | Encoder A | Rotary encoder rotation |
+| 4 | TUNESW | Encoder push button (INPUT_PULLUP) |
+| 5 | LED | Signal/tuning indicator |
+| 6 | (reserved) | Audio Shield SPI flash MEMCS |
+| 7 | I2S RX | Audio Shield SGTL5000 |
+| 8 | I2S TX | Audio Shield SGTL5000 |
+| 9 | (reserved) | Audio Shield SD card CS |
+| 10 | TFT CS | ILI9341 SPI chip select |
+| 11 | SPI MOSI | ILI9341 display |
+| 12 | SPI MISO | ILI9341 display |
+| 13 | SPI SCLK | ILI9341 display |
+| 14 | Digital input 1 | **Available** |
+| 15 | Digital input 2 | **Available** |
+| 16 | — | Available |
+| 17 | — | Available |
+| 18 | I2C SDA | SGTL5000 control (Wire) |
+| 19 | I2C SCL | SGTL5000 control (Wire) |
+| 20 | I2S LRCLK | Audio Shield SGTL5000 |
+| 21 | I2S BCLK | Audio Shield SGTL5000 |
+| 22 | PWM Out 1 | AudioOutputPWM channel 1 |
+| 23 | PWM Out 2 / MCLK | AudioOutputPWM channel 2 + I2S MCLK |
 
 ## Signal Processing
 

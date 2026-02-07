@@ -1,5 +1,25 @@
 # Done Changes
 
+## 1.1.2 2026-02-07 23:18 - Sweep rate changed to 10ms/pixel
+
+- Changed SCOPE_MS_PER_PIXEL from 20 to 10 (full sweep = 3.2s)
+
+## 1.1.1 2026-02-07 23:09 - Oscilloscope-like display for pins 14 & 15
+
+### Scope display
+- Added oscilloscope-style trace display in the TFT area between the 4-output menu (y=144) and the version line (y=222)
+- Pin 14 displayed in green, pin 15 displayed in cyan
+- Each signal shows HIGH and LOW levels separated by 10 pixels, with 15px gap between the two traces
+- Triggered on rising edge of pin 14, sweep resets to x=0
+- Sweep rate: 20ms per pixel (320px = 6.4s full sweep) (changed to 10ms in 1.1.2)
+- 10-pixel wipe-ahead clears old data in front of current position
+- At right edge, sweep stops and waits for next trigger
+- Vertical transition lines drawn when signal level changes between samples
+
+### Pins used
+- **Pin 14**: Digital input 1 (trigger + trace)
+- **Pin 15**: Digital input 2 (trace)
+
 ## 1.1 2026-02-01 16:03 - Redo user interface
 
 ### Display layout
