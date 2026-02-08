@@ -15,13 +15,12 @@ A rotary encoder navigates the menu; pushing it enters/exits parameter edit mode
 
 ### Oscilloscope Display
 
-Between the menu and the version line, a simple oscilloscope view shows digital signal levels vs time:
-- **Pin 14** (green): trigger source + trace. A rising edge resets the sweep to the left.
-- **Pin 15** (cyan): second trace.
-- **Detection** (magenta): tone detection state from the coherent demodulator.
+Between the menu and the version line, a 4-trace oscilloscope view shows signal levels vs time:
+- **Pin 14 sync** (green) and **Pin 15 tone** (cyan): superposed digital traces sharing the same vertical band. A rising edge on pin 14 triggers the sweep.
+- **Detection** (magenta): binary trace from `get_last_detection()`.
+- **Power** (yellow): analog trace (0.0–1.0) from `get_last_power()`.
 - Sweep rate: 10ms/pixel, 300 pixels wide = 3.0 seconds.
-- Vertical transition lines are drawn when a signal changes level.
-- A 5th menu row (selectable via encoder) controls the scope: pressing the button outputs one sweep of tab-separated serial data (`Time Sync Tone Detect`).
+- A 5th menu row controls the scope: pressing the button outputs one sweep of tab-separated serial data (`Time Sync Tone Detect Power`).
 
 ### Serial Command Language
 

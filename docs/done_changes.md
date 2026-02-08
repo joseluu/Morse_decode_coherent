@@ -1,5 +1,25 @@
 # Done Changes
 
+## 1.3.1 2026-02-08 14:50 - Oscilloscope changes (feature 3.1)
+
+### Superposed sync/tone traces
+- Pin 14 (green) and Pin 15 (cyan) now share the same vertical band (SCOPE_SYNC_HIGH/LOW)
+- Both traces drawn at the same y positions, overlapping when both HIGH or both LOW
+
+### Detection trace from demodulator
+- Third trace now reads `CW_In.get_last_detection()` instead of the `Tone` variable
+- Still displayed as binary HIGH/LOW in magenta
+
+### Power trace (new, analog)
+- Fourth trace displays `CW_In.get_last_power()` (float 0.0–1.0) in yellow
+- Mapped to a 30px vertical range with continuous line drawing
+
+### Marge linked to demodulator threshold
+- `set marge` command now also calls `CW_In.set_threshold()` to sync the demodulator
+
+### Serial CSV updated
+- Added Power column: header is now `Time\tSync\tTone\tDetect\tPower`
+
 ## 1.3 2026-02-07 23:56 - Serial command language (feature 3)
 
 - Added serial command interface at 115200 baud

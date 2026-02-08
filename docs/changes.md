@@ -89,3 +89,9 @@ The language is able to alter function values and to start serial output.
 Altered function values are reflected on the display.
 Command language includes a command "help" where the language is described on the serial output.
 Command language includes a command "status" where all the function values are output on the serial channel.
+### 3.1 oscilloscope changes
+When changing the Marge value call set_threshold on the demodulator object.
+Superpose the first 2 oscilloscope traces displaying the sync signal at pin 14 and the tone signal at pin 15.
+The third trace should display the value obtained by calling get_last_detection. The fourth trace should display
+the value obtained by calling get_last_power. The values returned by get_last_power and get_last_detection are float
+numbers between 0.0 and 1.0

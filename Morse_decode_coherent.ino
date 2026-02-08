@@ -71,12 +71,12 @@ char DisplayLine[num_chars+1];
 #define SCOPE_WIDTH        (SCREEN_WIDTH - SCOPE_X_OFFSET)
 #define PIN_INPUT_1        14
 #define PIN_INPUT_2        15
-#define SCOPE_PIN14_HIGH   (SCOPE_AREA_Y + 9)
-#define SCOPE_PIN14_LOW    (SCOPE_PIN14_HIGH + 10)
-#define SCOPE_PIN15_HIGH   (SCOPE_PIN14_LOW + 15)
-#define SCOPE_PIN15_LOW    (SCOPE_PIN15_HIGH + 10)
-#define SCOPE_DETECT_HIGH  (SCOPE_PIN15_LOW + 15)
+#define SCOPE_SYNC_HIGH    (SCOPE_AREA_Y + 5)
+#define SCOPE_SYNC_LOW     (SCOPE_SYNC_HIGH + 10)
+#define SCOPE_DETECT_HIGH  (SCOPE_SYNC_LOW + 10)
 #define SCOPE_DETECT_LOW   (SCOPE_DETECT_HIGH + 10)
+#define SCOPE_POWER_TOP    (SCOPE_DETECT_LOW + 5)
+#define SCOPE_POWER_BOT    (VERSION_LINE_Y - 8)
 
 // Decoded text cursor position (within decode area)
 int posH = 10;
@@ -89,6 +89,7 @@ bool scopePin14Prev = false;
 bool scopePin14Level = false;
 bool scopePin15Level = false;
 bool scopeDetectLevel = false;
+float scopePowerPrev = 0.0f;
 bool scopeActive = false;
 bool scopeSerialRequested = false;
 bool scopeSerialActive = false;
@@ -197,7 +198,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.3 2026-02-07 23:56"
+#define VERSION "1.3.1 2026-02-08 14:50"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -381,12 +382,13 @@ void updateOscilloscope() {
     scopeLastUpdate = millis();
     scopePin14Level = pin14Now;
     scopePin15Level = digitalRead(PIN_INPUT_2);
-    scopeDetectLevel = Tone;
+    scopeDetectLevel = (CW_In.get_last_detection() > 0.5f);
+    scopePowerPrev = CW_In.get_last_power();
     // Start serial output if requested
     if (scopeSerialRequested) {
       scopeSerialRequested = false;
       scopeSerialActive = true;
-      Serial.println("Time\tSync\tTone\tDetect");
+      Serial.println("Time\tSync\tTone\tDetect\tPower");
     }
   }
   scopePin14Prev = pin14Now;
@@ -404,7 +406,8 @@ void updateOscilloscope() {
   // Read current levels
   bool newPin14 = digitalRead(PIN_INPUT_1);
   bool newPin15 = digitalRead(PIN_INPUT_2);
-  bool newDetect = Tone;
+  bool newDetect = (CW_In.get_last_detection() > 0.5f);
+  float newPower = CW_In.get_last_power();
 
   // Serial output if active
   if (scopeSerialActive) {
@@ -414,7 +417,9 @@ void updateOscilloscope() {
     Serial.print('\t');
     Serial.print(newPin15 ? 1 : 0);
     Serial.print('\t');
-    Serial.println(newDetect ? 1 : 0);
+    Serial.print(newDetect ? 1 : 0);
+    Serial.print('\t');
+    Serial.println(newPower, 3);
   }
 
   // Wipe ahead: clear columns in front of current position
@@ -424,37 +429,45 @@ void updateOscilloscope() {
     tft.fillRect(screenX, SCOPE_AREA_Y, wipeEnd - screenX, SCOPE_AREA_HEIGHT, ILI9341_BLACK);
   }
 
-  // Draw pin 14 trace (green)
-  int y14 = newPin14 ? SCOPE_PIN14_HIGH : SCOPE_PIN14_LOW;
+  // Draw pin 14 sync trace (green) — superposed with pin 15
+  int y14 = newPin14 ? SCOPE_SYNC_HIGH : SCOPE_SYNC_LOW;
   tft.drawPixel(screenX, y14, ILI9341_GREEN);
   if (newPin14 != scopePin14Level) {
-    int yMin = min(SCOPE_PIN14_HIGH, SCOPE_PIN14_LOW);
-    int yMax = max(SCOPE_PIN14_HIGH, SCOPE_PIN14_LOW);
-    tft.drawFastVLine(screenX, yMin, yMax - yMin + 1, ILI9341_GREEN);
+    tft.drawFastVLine(screenX, SCOPE_SYNC_HIGH, SCOPE_SYNC_LOW - SCOPE_SYNC_HIGH + 1, ILI9341_GREEN);
   }
 
-  // Draw pin 15 trace (cyan)
-  int y15 = newPin15 ? SCOPE_PIN15_HIGH : SCOPE_PIN15_LOW;
+  // Draw pin 15 tone trace (cyan) — superposed with pin 14
+  int y15 = newPin15 ? SCOPE_SYNC_HIGH : SCOPE_SYNC_LOW;
   tft.drawPixel(screenX, y15, ILI9341_CYAN);
   if (newPin15 != scopePin15Level) {
-    int yMin = min(SCOPE_PIN15_HIGH, SCOPE_PIN15_LOW);
-    int yMax = max(SCOPE_PIN15_HIGH, SCOPE_PIN15_LOW);
-    tft.drawFastVLine(screenX, yMin, yMax - yMin + 1, ILI9341_CYAN);
+    tft.drawFastVLine(screenX, SCOPE_SYNC_HIGH, SCOPE_SYNC_LOW - SCOPE_SYNC_HIGH + 1, ILI9341_CYAN);
   }
 
-  // Draw detection trace (magenta)
+  // Draw detection trace (magenta) — binary from get_last_detection
   int yDet = newDetect ? SCOPE_DETECT_HIGH : SCOPE_DETECT_LOW;
   tft.drawPixel(screenX, yDet, ILI9341_MAGENTA);
   if (newDetect != scopeDetectLevel) {
-    int yMin = min(SCOPE_DETECT_HIGH, SCOPE_DETECT_LOW);
-    int yMax = max(SCOPE_DETECT_HIGH, SCOPE_DETECT_LOW);
-    tft.drawFastVLine(screenX, yMin, yMax - yMin + 1, ILI9341_MAGENTA);
+    tft.drawFastVLine(screenX, SCOPE_DETECT_HIGH, SCOPE_DETECT_LOW - SCOPE_DETECT_HIGH + 1, ILI9341_MAGENTA);
+  }
+
+  // Draw power trace (yellow) — analog from get_last_power
+  int powerRange = SCOPE_POWER_BOT - SCOPE_POWER_TOP;
+  int yPow = SCOPE_POWER_BOT - (int)(newPower * powerRange);
+  yPow = constrain(yPow, SCOPE_POWER_TOP, SCOPE_POWER_BOT);
+  int yPowPrev = SCOPE_POWER_BOT - (int)(scopePowerPrev * powerRange);
+  yPowPrev = constrain(yPowPrev, SCOPE_POWER_TOP, SCOPE_POWER_BOT);
+  tft.drawPixel(screenX, yPow, ILI9341_YELLOW);
+  if (yPow != yPowPrev) {
+    int yMin = min(yPow, yPowPrev);
+    int yMax = max(yPow, yPowPrev);
+    tft.drawFastVLine(screenX, yMin, yMax - yMin + 1, ILI9341_YELLOW);
   }
 
   // Update stored levels
   scopePin14Level = newPin14;
   scopePin15Level = newPin15;
   scopeDetectLevel = newDetect;
+  scopePowerPrev = newPower;
 
   scopeX++;
 }
@@ -542,6 +555,7 @@ void executeCommand(char* cmd) {
       float val = atof(arg + 6);
       if (val > 0.0f) {
         Marge = val;
+        CW_In.set_threshold(val);
         Serial.print("Marge = ");
         Serial.println(Marge, 3);
       } else {
