@@ -68,6 +68,8 @@ public:
     StateChanged get_state_change();
     float32_t get_threshold();
     void set_threshold(float32_t new_threshold);
+    float32_t get_last_power(void);
+    float32_t get_last_detection(void);
 
 private:
 // constants setup in the cpp file
@@ -112,6 +114,7 @@ private:
     float32_t current_Q = 0.0f;
     float32_t current_power = 0.0f;
     float32_t current_phase = 0.0f;
+    float32_t current_detection = 0.0f;
 
     // Anti-aliasing pre-filter (4th order Butterworth at 2*f_carrier)
     arm_biquad_casd_df1_inst_f32 pre_filter;

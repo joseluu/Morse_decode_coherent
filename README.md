@@ -4,6 +4,20 @@ The goal is to be able to decode a morse signal in a -20db snr environment.
 
 This is work in progress.
 
+## Signal connections on Teensy hardware
+
+The input is on the line connector right channel, the one opposite to the earphone plug
+
+Debug inputs:
+* pin 14 sync start
+* pin 15 tone
+
+Debug outputs:
+* line left channel
+* line right chennel
+* pin 22 out PWM 2
+* pin 23 out PWM 2
+
 ## User Interface
 
 The TFT display (320x240, ILI9341) is divided into three zones:

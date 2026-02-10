@@ -63,8 +63,13 @@ float32_t AudioCoherentDemod4x_F32::get_power_value(void){
     float32_t power_value = power_queue.front();   // Get the oldest value
     power_queue.pop_front();
     return power_value;
-};
-
+}
+float32_t AudioCoherentDemod4x_F32::get_last_power(void){
+    return current_power;
+}
+float32_t AudioCoherentDemod4x_F32::get_last_detection(void){
+    return current_detection;
+}
 float32_t AudioCoherentDemod4x_F32::get_f_sampling(void) const
 {
     return f_sampling;
@@ -213,6 +218,7 @@ void AudioCoherentDemod4x_F32::update(void)
                     state_changes.pop_front();
                 }
 
+                // accumule tous les echantillons de puissance calculés
                 current_power = power;
                 power_queue.push_back(power);
                 if (power_queue.size() > 10){
@@ -231,7 +237,8 @@ void AudioCoherentDemod4x_F32::update(void)
         out_blocks[Q_SAMPLES]->data[idx] = Q_val;
         out_blocks[PHASE_SAMPLES]->data[idx] = current_phase;
         out_blocks[UNFILTERED_POWER]->data[idx] = raw_power;
-        out_blocks[DETECTION_SAMPLES]->data[idx] = (above_threshold ? 1.0f : 0.0f); // output square wave of detection state
+        current_detection = (above_threshold ? 1.0f : 0.0f);
+        out_blocks[DETECTION_SAMPLES]->data[idx] = current_detection; // output square wave of detection state
 
         idx++;
     }

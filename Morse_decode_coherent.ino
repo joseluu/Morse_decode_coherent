@@ -209,20 +209,23 @@ const int myInput = AUDIO_INPUT_LINEIN;                 // entrée connecteur 10
 
 
 AudioInputI2S                      I2s1;           //xy=89,393
+AudioOutputI2S                     I2s2;           //xy=1288,393
+// NOTE: AudioOutputPWM conflicts with AudioOutputI2S (DMA conflict) — cannot use both
 
 AudioCoherentDemod4x_F32           CW_In;      //xy=474,405
-AudioAnalyzeNoteFrequency          notefreq1 ;
+
 AudioConvert_I16toF32              cnvrtI2F0 ;
 AudioConvert_F32toI16              cnvrtF2I0 ;    // Out Left converter
 AudioConvert_F32toI16              cnvrtF2I1 ;    // Out Right converter
-AudioConvert_F32toI16              cnvrtF2I2 ;    // Out PWM 1 converter
-AudioConvert_F32toI16              cnvrtF2I3 ;    // Out PWM 2 converter
-AudioOutputI2S                     I2s2;           //xy=1288,393
-AudioOutputPWM                     pwmOut(22, 23); // PWM output: pin 22 = PWM 1, pin 23 = PWM 2
-AudioConnection              patchCord1(I2s1, 1, notefreq1,0);                // en 16 bits utilisé pour test
-AudioConnection              patchCord2(I2s1, 1, cnvrtI2F0,0);                   // 16 bits vers Float32
 
-AudioConnection_F32          patchCord3(cnvrtI2F0, 0, CW_In, 0);                 // en 32 bits décodage de la tonalité
+AudioEffectGain_F32                amp1;           // available for future use
+
+// Input: I2s1 ch1 (Line In Right) -> I16-to-F32 converter -> CW_In demodulator
+AudioConnection              patchCord2(I2s1, 1, cnvrtI2F0, 0);
+AudioConnection_F32          patchCord3(cnvrtI2F0, 0, CW_In, 0);
+
+// amp1 taps the F32 input (available for future use)
+AudioConnection_F32          patchCord1a(cnvrtI2F0, 0, amp1, 0);
 
 // 4 output selectors: Out Left, Out Right, Out PWM 1, Out PWM 2
 AudioMixer9_F32              outputSelector[NUM_OUTPUTS];
@@ -278,17 +281,13 @@ AudioConnection_F32          cDS36(CW_In, UNFILTERED_POWER, outputSelector[3], U
 AudioConnection_F32          cDS37(CW_In, BESSEL, outputSelector[3], BESSEL);
 AudioConnection_F32          cDS38(CW_In, PRE, outputSelector[3], PRE);
 
-// Connect selectors to converters
+// Connect selectors 0,1 to I2S output via F32->I16 converters
 AudioConnection_F32          connectSel0(outputSelector[0], 0, cnvrtF2I0, 0);
 AudioConnection_F32          connectSel1(outputSelector[1], 0, cnvrtF2I1, 0);
-AudioConnection_F32          connectSel2(outputSelector[2], 0, cnvrtF2I2, 0);
-AudioConnection_F32          connectSel3(outputSelector[3], 0, cnvrtF2I3, 0);
+AudioConnection              connectConvOutLeft(cnvrtF2I0, 0, I2s2, 0);   // Out Left
+AudioConnection              connectConvOutRight(cnvrtF2I1, 0, I2s2, 1);  // Out Right
 
-// Connect converters to hardware outputs
-AudioConnection              connectI2SLeft(cnvrtF2I0, 0, I2s2, 0);   // Out Left
-AudioConnection              connectI2SRight(cnvrtF2I1, 0, I2s2, 1);  // Out Right
-AudioConnection              connectPWM1(cnvrtF2I2, 0, pwmOut, 0);    // Out PWM 1
-AudioConnection              connectPWM2(cnvrtF2I3, 0, pwmOut, 1);    // Out PWM 2
+// NOTE: Out PWM 1/2 (selectors 2,3) disabled — AudioOutputPWM conflicts with AudioOutputI2S
 
 AudioControlSGTL5000              sgtl5000_1;    //xy=503,960
 // GUItool: end automatically generated code
@@ -317,19 +316,19 @@ void setup() {
 
   // -------------------------------------------------------------------- configure serial port
   Serial.begin(115200);
-  SetI2SFreq(CW_In.get_f_sampling());
   //---------------------------------------------------------configure paramètres SGTL5000
   sgtl5000_1.enable();
   AudioMemory(100);                                       // pour le 16 bits
   AudioMemory_F32(200);                                   // pour le 32 bits
-  sgtl5000_1.inputSelect(myInput );
+  sgtl5000_1.inputSelect(AUDIO_INPUT_LINEIN);             // or AUDIO_INPUT_MIC
   sgtl5000_1.volume(0.6);
-  sgtl5000_1.lineInLevel (0);                            // 0 à 15   15: 0.24Vpp    11: 0.48Vpp  0: 2.8Vpp (1V rms) // avoid saturation !
+  sgtl5000_1.lineInLevel (15);                            // 0 à 15   15: 0.24Vpp    11: 0.48Vpp  0: 2.8Vpp (1V rms) // avoid saturation !
   sgtl5000_1.lineOutLevel (13);                           // 13 to 31     13 = maximum
 
-  applyAllOutputSelections();
+  setI2SFreq((int)CW_In.get_f_sampling());
 
-  notefreq1.begin(0.08f);
+  amp1.setGain(1.0f);
+  applyAllOutputSelections();
 
   encoder.begin(3,0);                                          // deux fils de l'encodeur partie rotative
 
@@ -748,24 +747,24 @@ boolean sample() {
     }
     float toneValue = CW_In.get_power_value();
     if (false && Debug) {
-      Serial.print(toneValue);                          // décodage de la note par CW_in 
+      Serial.print(toneValue);                          // décodage de la note par CW_in
       Serial.print("\t");
       Serial.print(Marge);
       Serial.print("\t");
-      Serial.println(toneValue > Marge);      
+      Serial.println(toneValue > Marge);
     }
 
-    if (toneValue > Marge) {                               //  trouvé assez grand  ??                                                       // note au dessus du bruit + Marge ( S/N en fait )?? dans le cas de détection par valeur de bin .
-      tone_++;   
-      Tone = true; 
-      digitalWrite(LED, HIGH)  ;                                  // LED glows when signal present
+    if (toneValue > Marge) {
+      tone_++;
+      Tone = true;
+      digitalWrite(LED, HIGH);                                  // LED glows when signal present
       return true;
 
     } else {                                                       // ----- no_tone
       tone_ = 0;                                                // empty opposite integrator
-      no_tone_++;  
+      no_tone_++;
       Tone = false;                                             // integrate
-      digitalWrite(LED, LOW)  ;   
+      digitalWrite(LED, LOW);
       return false;
     }
   }
@@ -988,7 +987,8 @@ void dash() {
     int             the frequency or 0 if too large
 
 *****/
-int SetI2SFreq(int freq) {
+#if 1
+int setI2SFreq(int freq) {
   int n1;
   int n2;
   int c0;
@@ -1028,3 +1028,20 @@ int SetI2SFreq(int freq) {
                | CCM_CS2CDR_SAI2_CLK_PODF(n2 - 1);  // &0x3f)
   return freq;
 }
+#else
+void setI2SFreq(int freq1)                                // merci Franck B.
+{
+  // PLL between 27*24 = 648MHz und 54*24=1296MHz
+  int n1 = 4; //SAI prescaler 4 => (n1*n2) = multiple of 4
+  int n2 = 1 + (24000000 * 27) / (freq1 * 256 * n1);
+  double C = ((double)freq1 * 256 * n1 * n2) / 24000000;
+  int c0 = C;
+  int c2 = 10000;
+  int c1 = C * c2 - (c0 * c2);
+  set_audioClock(c0, c1, c2, true);
+  CCM_CS1CDR = (CCM_CS1CDR & ~(CCM_CS1CDR_SAI1_CLK_PRED_MASK | CCM_CS1CDR_SAI1_CLK_PODF_MASK))
+       | CCM_CS1CDR_SAI1_CLK_PRED(n1-1)                                // &0x07
+       | CCM_CS1CDR_SAI1_CLK_PODF(n2-1);                               // &0x3f
+  Serial.printf("SetI2SFreq(%d)\n",freq1);
+}
+#endif
