@@ -95,3 +95,14 @@ Superpose the first 2 oscilloscope traces displaying the sync signal at pin 14 a
 The third trace should display the value obtained by calling get_last_detection. The fourth trace should display
 the value obtained by calling get_last_power. The values returned by get_last_power and get_last_detection are float
 numbers between 0.0 and 1.0
+### 3.2 signal management
+Remove all mentions and usage of PWM outputs since they cause incompatibility with I2s, including top level functions on the display.
+Migrate inputs and outputs to their _F32 equivalents, eliminate all conversions to integer.
+AudioOutputI2S_F32 has a setGain function, add a top level function named "Gain" whose parameter can be 0.1 1.0 10.0
+Create an internal signal generator with 7 parameters: 1.0  0.0  -1.0  0.9  9  90  900 where the first 3 values 1.0 0 -1.0 produce a constant steady value, the last 3 values produce sine waves of frequency 0.9Hz 9Hz 90Hz 900Hz.
+Add 2 entries to the AudioMixer9_F32, name the class and file AudioMixer11_F32.
+For the Out Left and Out Right top level functions, add parameters:
+* INPUT
+* SIGNAL INT.
+
+

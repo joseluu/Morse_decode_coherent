@@ -6,7 +6,8 @@ This is work in progress.
 
 ## Signal connections on Teensy hardware
 
-The input is on the line connector right channel, the one opposite to the earphone plug
+The input is on the line connector right channel, the one opposite to the earphone plug.
+Input sensitivity: `lineInLevel(0)` = 3.12Vpp max range.
 
 Debug inputs:
 * pin 14 sync start
@@ -14,18 +15,34 @@ Debug inputs:
 
 Debug outputs:
 * line left channel
-* line right chennel
-* pin 22 out PWM 2
-* pin 23 out PWM 2
+* line right channel
 
 ## User Interface
 
 The TFT display (320x240, ILI9341) is divided into three zones:
 - **Top**: Decoded Morse text output (3 lines)
-- **Middle**: Menu with 4 output channel selectors (Out Left, Out Right, Out PWM 1, Out PWM 2)
+- **Middle**: Menu with 4 function rows + scope bar
 - **Bottom**: Software version
 
-A rotary encoder navigates the menu; pushing it enters/exits parameter edit mode where each output can be assigned one of 9 internal signal sources from the coherent demodulator.
+### Menu Functions
+
+| Row | Function  | Parameter Values |
+|-----|-----------|------------------|
+| 0   | Out Left  | 11 sources: POWER, I_SAMPLES, Q_SAMPLES, PHASE, SUBSAMP, DETECT, UNFILT_P, BESSEL, PRE, INPUT, SIG INT |
+| 1   | Out Right | Same 11 sources |
+| 2   | Gain      | 0.1, 1.0, 10.0 (controls I2S output gain) |
+| 3   | Sig Gen   | 1.0, 0.0, -1.0, 0.9Hz, 9Hz, 90Hz, 900Hz (internal signal generator) |
+| 4   | Scope     | Button triggers serial CSV output |
+
+A rotary encoder navigates the menu; pushing it enters/exits parameter edit mode.
+
+### Audio Architecture
+
+All-F32 audio path using OpenAudio_ArduinoLibrary:
+- `AudioInputI2S_F32` → `AudioCoherentDemod4x_F32` (9 demodulator outputs)
+- Signal sources routed through `AudioMixer11_F32` (11-input mixer) to `AudioOutputI2S_F32`
+- Additional sources: INPUT (raw Line In), SIG INT (internal signal generator)
+- Output gain controlled via `AudioOutputI2S_F32.setGain()`
 
 ### Oscilloscope Display
 
@@ -39,9 +56,11 @@ Between the menu and the version line, a 4-trace oscilloscope view shows signal 
 ### Serial Command Language
 
 Connect at 115200 baud. Available commands:
-- `help` — list commands and valid source names
-- `status` — show current output assignments and detection threshold
-- `set out<N> <source>` — assign source to output (e.g. `set out0 BESSEL`)
+- `help` — list commands, source names, and signal generator modes
+- `status` — show current settings (outputs, gain, siggen, marge)
+- `set out<N> <source>` — assign source to output 0-1 (e.g. `set out0 INPUT`)
+- `set gain <value>` — set output gain (0.1, 1.0, or 10.0)
+- `set siggen <mode>` — set signal generator mode 0-6
 - `set marge <value>` — set detection threshold (e.g. `set marge 0.3`)
 - `scope` — output next oscilloscope sweep as tab-separated CSV
 
@@ -71,8 +90,8 @@ Connect at 115200 baud. Available commands:
 | 19 | I2C SCL | SGTL5000 control (Wire) |
 | 20 | I2S LRCLK | Audio Shield SGTL5000 |
 | 21 | I2S BCLK | Audio Shield SGTL5000 |
-| 22 | PWM Out 1 | AudioOutputPWM channel 1 |
-| 23 | PWM Out 2 / MCLK | AudioOutputPWM channel 2 + I2S MCLK |
+| 22 | — | Available |
+| 23 | I2S MCLK | Audio Shield SGTL5000 |
 
 ## Signal Processing
 

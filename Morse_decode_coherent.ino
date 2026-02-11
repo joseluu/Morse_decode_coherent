@@ -18,14 +18,15 @@
 #include <Wire.h>
 #include <SD.h>
 #include <SerialFlash.h>
-#include <output_i2s.h>
-#include <input_i2s.h>
+#include <output_i2s_f32.h>
+#include <input_i2s_f32.h>
 #include <AudioStream_F32.h>
 #include "ILI9341_t3n.h"
 #include "ili9341_t3n_font_Arial.h"
 #include <Bounce2.h>
 #include "AudioCoherentDemod4x_F32.h"
-#include "AudioMixer9_F32.h"
+#include "AudioMixer11_F32.h"
+#include "AudioSignalGenerator_F32.h"
 
 
                        // signal/tuning indicator
@@ -63,7 +64,7 @@ char DisplayLine[num_chars+1];
 #define VERSION_LINE_Y     222      // bottom line for version
 
 // Oscilloscope display constants
-#define SCOPE_AREA_Y       (MENU_AREA_Y + NUM_OUTPUTS * MENU_LINE_HEIGHT)
+#define SCOPE_AREA_Y       (MENU_AREA_Y + 4 * MENU_LINE_HEIGHT)
 #define SCOPE_AREA_HEIGHT  (VERSION_LINE_Y - SCOPE_AREA_Y)
 #define SCOPE_MS_PER_PIXEL 10
 #define SCOPE_WIPE_AHEAD   10
@@ -111,15 +112,17 @@ float x = 0 ;                 // valeur du bin mesuré_désiré)
  #define WATERFALL_ROW_COUNT 1                           // nombre de lignes
 
 //------------------------------- Menu UI
-#define NUM_OUTPUTS 4
+#define NUM_OUTPUTS 2
 #define NUM_MENU_ROWS 5
-#define NUM_SOURCES 9
+#define NUM_SOURCES 11
+#define NUM_GAIN_VALUES 3
+#define NUM_SIGGEN_MODES 7
 
-const char* outputNames[NUM_OUTPUTS] = {
+const char* menuRowNames[4] = {
   "Out Left",
   "Out Right",
-  "Out PWM 1",
-  "Out PWM 2"
+  "Gain",
+  "Sig Gen"
 };
 
 const char* sourceNames[NUM_SOURCES] = {
@@ -131,21 +134,27 @@ const char* sourceNames[NUM_SOURCES] = {
   "DETECT",
   "UNFILT_P",
   "BESSEL",
-  "PRE"
+  "PRE",
+  "INPUT",
+  "SIG INT"
 };
 
-// Source index constants (matching #defines)
-const int sourceIndex[NUM_SOURCES] = {
-  POWER, I_SAMPLES, Q_SAMPLES, PHASE_SAMPLES,
-  SUBSAMPLE_TICKS, DETECTION_SAMPLES, UNFILTERED_POWER,
-  BESSEL, PRE
-};
+#define INPUT_SRC      9
+#define SIGNAL_INT_SRC 10
 
 // Current source selection for each output (index into sourceNames)
-int outputSourceSel[NUM_OUTPUTS] = { BESSEL, POWER, SUBSAMPLE_TICKS, UNFILTERED_POWER };
+int outputSourceSel[NUM_OUTPUTS] = { BESSEL, POWER };
+
+// Gain state
+int gainSelIdx = 1;                // default 1.0 (index 1)
+float gainValues[NUM_GAIN_VALUES] = { 0.1f, 1.0f, 10.0f };
+const char* gainNames[NUM_GAIN_VALUES] = { "0.1", "1.0", "10.0" };
+
+// Signal generator state
+int sigGenSelIdx = 0;              // default DC 1.0 (index 0)
 
 // Menu state
-int menuSelectedRow = 0;           // which output function is highlighted (0..3)
+int menuSelectedRow = 0;           // which row is highlighted (0..4)
 bool menuEditMode = false;         // true = editing parameter value for selected row
 
 
@@ -198,7 +207,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.3.1 2026-02-08 14:50"
+#define VERSION "1.4.1 2026-02-11 21:28"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -208,27 +217,17 @@ const int myInput = AUDIO_INPUT_LINEIN;                 // entrée connecteur 10
 
 
 
-AudioInputI2S                      I2s1;           //xy=89,393
-AudioOutputI2S                     I2s2;           //xy=1288,393
-// NOTE: AudioOutputPWM conflicts with AudioOutputI2S (DMA conflict) — cannot use both
+AudioInputI2S_F32                  I2s1;
+AudioOutputI2S_F32                 I2s2;
 
-AudioCoherentDemod4x_F32           CW_In;      //xy=474,405
+AudioCoherentDemod4x_F32           CW_In;
+AudioSignalGenerator_F32           sigGen;
 
-AudioConvert_I16toF32              cnvrtI2F0 ;
-AudioConvert_F32toI16              cnvrtF2I0 ;    // Out Left converter
-AudioConvert_F32toI16              cnvrtF2I1 ;    // Out Right converter
+// Input: I2s1 ch1 (Line In Right) -> CW_In demodulator (direct F32)
+AudioConnection_F32          patchCord2(I2s1, 1, CW_In, 0);
 
-AudioEffectGain_F32                amp1;           // available for future use
-
-// Input: I2s1 ch1 (Line In Right) -> I16-to-F32 converter -> CW_In demodulator
-AudioConnection              patchCord2(I2s1, 1, cnvrtI2F0, 0);
-AudioConnection_F32          patchCord3(cnvrtI2F0, 0, CW_In, 0);
-
-// amp1 taps the F32 input (available for future use)
-AudioConnection_F32          patchCord1a(cnvrtI2F0, 0, amp1, 0);
-
-// 4 output selectors: Out Left, Out Right, Out PWM 1, Out PWM 2
-AudioMixer9_F32              outputSelector[NUM_OUTPUTS];
+// 2 output selectors: Out Left, Out Right (11-input mixers)
+AudioMixer11_F32             outputSelector[NUM_OUTPUTS];
 
 #define POWER 0
 #define I_SAMPLES 1
@@ -261,33 +260,17 @@ AudioConnection_F32          cDS16(CW_In, UNFILTERED_POWER, outputSelector[1], U
 AudioConnection_F32          cDS17(CW_In, BESSEL, outputSelector[1], BESSEL);
 AudioConnection_F32          cDS18(CW_In, PRE, outputSelector[1], PRE);
 
-AudioConnection_F32          cDS20(CW_In, POWER, outputSelector[2], POWER);
-AudioConnection_F32          cDS21(CW_In, I_SAMPLES, outputSelector[2], I_SAMPLES);
-AudioConnection_F32          cDS22(CW_In, Q_SAMPLES, outputSelector[2], Q_SAMPLES);
-AudioConnection_F32          cDS23(CW_In, PHASE_SAMPLES, outputSelector[2], PHASE_SAMPLES);
-AudioConnection_F32          cDS24(CW_In, SUBSAMPLE_TICKS, outputSelector[2], SUBSAMPLE_TICKS);
-AudioConnection_F32          cDS25(CW_In, DETECTION_SAMPLES, outputSelector[2], DETECTION_SAMPLES);
-AudioConnection_F32          cDS26(CW_In, UNFILTERED_POWER, outputSelector[2], UNFILTERED_POWER);
-AudioConnection_F32          cDS27(CW_In, BESSEL, outputSelector[2], BESSEL);
-AudioConnection_F32          cDS28(CW_In, PRE, outputSelector[2], PRE);
+// Connect selectors 0,1 directly to F32 I2S output
+AudioConnection_F32          connectSel0(outputSelector[0], 0, I2s2, 1);   // Out Left
+AudioConnection_F32          connectSel1(outputSelector[1], 0, I2s2, 0);   // Out Right
 
-AudioConnection_F32          cDS30(CW_In, POWER, outputSelector[3], POWER);
-AudioConnection_F32          cDS31(CW_In, I_SAMPLES, outputSelector[3], I_SAMPLES);
-AudioConnection_F32          cDS32(CW_In, Q_SAMPLES, outputSelector[3], Q_SAMPLES);
-AudioConnection_F32          cDS33(CW_In, PHASE_SAMPLES, outputSelector[3], PHASE_SAMPLES);
-AudioConnection_F32          cDS34(CW_In, SUBSAMPLE_TICKS, outputSelector[3], SUBSAMPLE_TICKS);
-AudioConnection_F32          cDS35(CW_In, DETECTION_SAMPLES, outputSelector[3], DETECTION_SAMPLES);
-AudioConnection_F32          cDS36(CW_In, UNFILTERED_POWER, outputSelector[3], UNFILTERED_POWER);
-AudioConnection_F32          cDS37(CW_In, BESSEL, outputSelector[3], BESSEL);
-AudioConnection_F32          cDS38(CW_In, PRE, outputSelector[3], PRE);
+// Connect raw INPUT to mixer input 9
+AudioConnection_F32          cINP0(I2s1, 1, outputSelector[0], INPUT_SRC);
+AudioConnection_F32          cINP1(I2s1, 1, outputSelector[1], INPUT_SRC);
 
-// Connect selectors 0,1 to I2S output via F32->I16 converters
-AudioConnection_F32          connectSel0(outputSelector[0], 0, cnvrtF2I0, 0);
-AudioConnection_F32          connectSel1(outputSelector[1], 0, cnvrtF2I1, 0);
-AudioConnection              connectConvOutLeft(cnvrtF2I0, 0, I2s2, 0);   // Out Left
-AudioConnection              connectConvOutRight(cnvrtF2I1, 0, I2s2, 1);  // Out Right
-
-// NOTE: Out PWM 1/2 (selectors 2,3) disabled — AudioOutputPWM conflicts with AudioOutputI2S
+// Connect signal generator to mixer input 10
+AudioConnection_F32          cSIG0(sigGen, 0, outputSelector[0], SIGNAL_INT_SRC);
+AudioConnection_F32          cSIG1(sigGen, 0, outputSelector[1], SIGNAL_INT_SRC);
 
 AudioControlSGTL5000              sgtl5000_1;    //xy=503,960
 // GUItool: end automatically generated code
@@ -298,7 +281,7 @@ AudioControlSGTL5000              sgtl5000_1;    //xy=503,960
 //------------------------------- channel selection helpers
 
 void selectOutputChannel(int outputIdx, int newSourceIdx) {
-  for (int i = 0; i < 9; i++) {
+  for (int i = 0; i < NUM_SOURCES; i++) {
     outputSelector[outputIdx].gain(i, 0.0f);
   }
   outputSelector[outputIdx].gain(newSourceIdx, 1.0f);
@@ -322,13 +305,15 @@ void setup() {
   AudioMemory_F32(200);                                   // pour le 32 bits
   sgtl5000_1.inputSelect(AUDIO_INPUT_LINEIN);             // or AUDIO_INPUT_MIC
   sgtl5000_1.volume(0.6);
-  sgtl5000_1.lineInLevel (15);                            // 0 à 15   15: 0.24Vpp    11: 0.48Vpp  0: 2.8Vpp (1V rms) // avoid saturation !
+  sgtl5000_1.lineInLevel (0);                             // 0 à 15   0: 3.12Vpp (max sensitivity)  15: 0.24Vpp
   sgtl5000_1.lineOutLevel (13);                           // 13 to 31     13 = maximum
 
   setI2SFreq((int)CW_In.get_f_sampling());
 
-  amp1.setGain(1.0f);
   applyAllOutputSelections();
+  I2s2.setGain(gainValues[gainSelIdx]);
+  sigGen.setSampleRate(CW_In.get_f_sampling());
+  sigGen.setMode(sigGenSelIdx);
 
   encoder.begin(3,0);                                          // deux fils de l'encodeur partie rotative
 
@@ -486,7 +471,9 @@ void cmdHelp() {
   Serial.println("Commands:");
   Serial.println("  help                  - show this help");
   Serial.println("  status                - show current settings");
-  Serial.println("  set out<N> <source>   - set output (0-3) to source");
+  Serial.println("  set out<N> <source>   - set output (0-1) to source");
+  Serial.println("  set gain <value>      - set gain (0.1, 1.0, 10.0)");
+  Serial.println("  set siggen <mode>     - set signal gen (0-6)");
   Serial.println("  set marge <value>     - set detection threshold");
   Serial.println("  scope                 - output next sweep as CSV");
   Serial.print("Sources:");
@@ -495,14 +482,26 @@ void cmdHelp() {
     Serial.print(sourceNames[i]);
   }
   Serial.println();
+  Serial.print("SigGen modes:");
+  for (int i = 0; i < NUM_SIGGEN_MODES; i++) {
+    Serial.print(' ');
+    Serial.print(i);
+    Serial.print('=');
+    Serial.print(AudioSignalGenerator_F32::getModeName(i));
+  }
+  Serial.println();
 }
 
 void cmdStatus() {
   for (int i = 0; i < NUM_OUTPUTS; i++) {
-    Serial.print(outputNames[i]);
+    Serial.print(menuRowNames[i]);
     Serial.print(": ");
     Serial.println(sourceNames[outputSourceSel[i]]);
   }
+  Serial.print("Gain: ");
+  Serial.println(gainNames[gainSelIdx]);
+  Serial.print("Sig Gen: ");
+  Serial.println(AudioSignalGenerator_F32::getModeName(sigGenSelIdx));
   Serial.print("Marge: ");
   Serial.println(Marge, 3);
 }
@@ -532,7 +531,7 @@ void executeCommand(char* cmd) {
       // Parse: out<N> <source>
       int outIdx = arg[3] - '0';
       if (outIdx < 0 || outIdx >= NUM_OUTPUTS) {
-        Serial.println("Error: output index 0-3");
+        Serial.println("Error: output index 0-1");
         return;
       }
       char* srcName = arg + 4;
@@ -547,9 +546,38 @@ void executeCommand(char* cmd) {
       outputSourceSel[outIdx] = srcIdx;
       selectOutputChannel(outIdx, srcIdx);
       drawMenu();
-      Serial.print(outputNames[outIdx]);
+      Serial.print(menuRowNames[outIdx]);
       Serial.print(" -> ");
       Serial.println(sourceNames[srcIdx]);
+    } else if (strncmp(arg, "gain ", 5) == 0) {
+      float val = atof(arg + 5);
+      // Find matching gain value
+      bool found = false;
+      for (int i = 0; i < NUM_GAIN_VALUES; i++) {
+        if (fabs(val - gainValues[i]) < 0.01f) {
+          gainSelIdx = i;
+          I2s2.setGain(gainValues[gainSelIdx]);
+          drawMenu();
+          Serial.print("Gain = ");
+          Serial.println(gainNames[gainSelIdx]);
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        Serial.println("Error: gain must be 0.1, 1.0, or 10.0");
+      }
+    } else if (strncmp(arg, "siggen ", 7) == 0) {
+      int mode = atoi(arg + 7);
+      if (mode >= 0 && mode < NUM_SIGGEN_MODES) {
+        sigGenSelIdx = mode;
+        sigGen.setMode(sigGenSelIdx);
+        drawMenu();
+        Serial.print("Sig Gen = ");
+        Serial.println(AudioSignalGenerator_F32::getModeName(sigGenSelIdx));
+      } else {
+        Serial.println("Error: siggen mode 0-6");
+      }
     } else if (strncmp(arg, "marge ", 6) == 0) {
       float val = atof(arg + 6);
       if (val > 0.0f) {
@@ -608,6 +636,7 @@ void loop() {
   }
   updateOscilloscope();
   processSerialInput();
+
   decode();
 }
 
@@ -621,12 +650,26 @@ void handleEncoder(int direction) {
     if (menuSelectedRow < 0) menuSelectedRow = NUM_MENU_ROWS - 1;
     if (menuSelectedRow >= NUM_MENU_ROWS) menuSelectedRow = 0;
   } else {
-    // Edit mode: rotate changes the source for the selected output (circular)
-    int src = outputSourceSel[menuSelectedRow] + direction;
-    if (src < 0) src = NUM_SOURCES - 1;
-    if (src >= NUM_SOURCES) src = 0;
-    outputSourceSel[menuSelectedRow] = src;
-    selectOutputChannel(menuSelectedRow, src);
+    if (menuSelectedRow < NUM_OUTPUTS) {
+      // Rows 0-1: output source selector (circular through NUM_SOURCES)
+      int src = outputSourceSel[menuSelectedRow] + direction;
+      if (src < 0) src = NUM_SOURCES - 1;
+      if (src >= NUM_SOURCES) src = 0;
+      outputSourceSel[menuSelectedRow] = src;
+      selectOutputChannel(menuSelectedRow, src);
+    } else if (menuSelectedRow == 2) {
+      // Row 2: Gain selector
+      gainSelIdx += direction;
+      if (gainSelIdx < 0) gainSelIdx = NUM_GAIN_VALUES - 1;
+      if (gainSelIdx >= NUM_GAIN_VALUES) gainSelIdx = 0;
+      I2s2.setGain(gainValues[gainSelIdx]);
+    } else if (menuSelectedRow == 3) {
+      // Row 3: Signal generator mode selector
+      sigGenSelIdx += direction;
+      if (sigGenSelIdx < 0) sigGenSelIdx = NUM_SIGGEN_MODES - 1;
+      if (sigGenSelIdx >= NUM_SIGGEN_MODES) sigGenSelIdx = 0;
+      sigGen.setMode(sigGenSelIdx);
+    }
   }
   drawMenu();
   delay(80);
@@ -664,7 +707,6 @@ void drawMenuRow(int row) {
 
   // Draw function name on the left
   if (isSelected) {
-    // Reverse video for selected row
     tft.fillRect(0, y, 100, MENU_LINE_HEIGHT,
                  menuEditMode ? ILI9341_YELLOW : ILI9341_WHITE);
     tft.setTextColor(ILI9341_BLACK);
@@ -672,20 +714,26 @@ void drawMenuRow(int row) {
     tft.setTextColor(ILI9341_ORANGE, ILI9341_BLACK);
   }
   tft.setCursor(4, y + 3);
-  tft.print(outputNames[row]);
+  tft.print(menuRowNames[row]);
 
-  // Draw current source value on the same line, right side
+  // Draw current value on the right side
   if (isSelected && menuEditMode) {
     tft.setTextColor(ILI9341_YELLOW, ILI9341_BLACK);
   } else {
     tft.setTextColor(ILI9341_GREEN, ILI9341_BLACK);
   }
   tft.setCursor(110, y + 3);
-  tft.print(sourceNames[outputSourceSel[row]]);
+  if (row < NUM_OUTPUTS) {
+    tft.print(sourceNames[outputSourceSel[row]]);
+  } else if (row == 2) {
+    tft.print(gainNames[gainSelIdx]);
+  } else if (row == 3) {
+    tft.print(AudioSignalGenerator_F32::getModeName(sigGenSelIdx));
+  }
 }
 
 void drawMenu() {
-  for (int i = 0; i < NUM_OUTPUTS; i++) {
+  for (int i = 0; i < 4; i++) {
     drawMenuRow(i);
   }
   drawScopeBar();

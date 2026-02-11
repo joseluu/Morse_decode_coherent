@@ -1,5 +1,68 @@
 # Done Changes
 
+## 1.4.1 2026-02-11 21:28 - Signal management fixes
+
+- Fixed signal generator DC modes: swapped 1.0 and -1.0 values to match labels (I2S output inverts)
+- Swapped I2S Left/Right channel assignments to match physical outputs
+- Reduced input sensitivity: `lineInLevel(0)` (3.12Vpp max range)
+
+## 1.4 2026-02-11 20:34 - Signal management (feature 3.2)
+
+### F32 I/O migration
+- Replaced `AudioInputI2S` + `AudioOutputI2S` (I16) with `AudioInputI2S_F32` + `AudioOutputI2S_F32`
+- Eliminated I16↔F32 converters (`cnvrtI2F0`, `cnvrtF2I0`, `cnvrtF2I1`)
+- Direct F32 path: `I2s1` → `CW_In` → `outputSelector` → `I2s2`
+- Removed `amp1` (AudioEffectGain_F32), gain now via `I2s2.setGain()`
+
+### PWM outputs removed
+- Removed all PWM output code (`pwmPeak2/3`, `analogWrite`, pins 22/23 setup)
+- Removed `Out PWM 1` and `Out PWM 2` menu items
+- Reduced from 4 output selectors to 2 (Out Left, Out Right only)
+
+### New AudioMixer11_F32 class
+- Extended `AudioMixer9_F32` from 9 to 11 inputs
+- New files: `AudioMixer11_F32.h`, `AudioMixer11_F32.cpp`
+
+### Internal signal generator
+- New class `AudioSignalGenerator_F32` (header-only: `AudioSignalGenerator_F32.h`)
+- 7 modes: DC {1.0, 0.0, -1.0}, Sine {0.9, 9, 90, 900} Hz
+- Phase accumulator using `arm_sin_f32`
+
+### New source parameters
+- Added `INPUT` (raw audio from Line In Right) and `SIG INT` (signal generator) to output selectors
+- `NUM_SOURCES` increased from 9 to 11
+
+### Menu restructure
+- Row 0: Out Left (11 sources), Row 1: Out Right (11 sources)
+- Row 2: Gain (0.1, 1.0, 10.0) — controls `AudioOutputI2S_F32.setGain()`
+- Row 3: Sig Gen (7 modes) — controls signal generator
+- Row 4: Scope bar (unchanged)
+
+### Serial commands updated
+- `set out<N>`: restricted to 0-1, new sources INPUT and SIG_INT available
+- `set gain <value>`: new command (0.1, 1.0, 10.0)
+- `set siggen <mode>`: new command (0-6)
+- `help` and `status` updated for new menu structure
+
+## 1.3.2 2026-02-10 18:00 - Fix I2S output (DMA conflict)
+
+### Root cause
+- `AudioOutputPWM` and `AudioOutputI2S` cannot coexist — both instantiated causes DMA conflict that silently kills I2S output
+
+### Audio I/O changes
+- Removed `AudioOutputPWM pwmOut(22, 23)` — root cause of no output on Line Out
+- Reverted to standard I16 I2S types: `AudioInputI2S` + `AudioOutputI2S`
+- F32 processing via converters: `AudioInputI2S` → `cnvrtI2F0` → F32 → `cnvrtF2I0/1` → `AudioOutputI2S`
+- `setI2SFreq()` now sets both SAI1 and SAI2 clock registers (matching old working version)
+
+### Demodulator additions
+- Added `get_last_power()` and `get_last_detection()` getters to `AudioCoherentDemod4x_F32`
+- Added `current_detection` member variable for caching detection state
+
+### PWM outputs disabled
+- Out PWM 1/2 menu items remain but are non-functional (selectors 2/3 have no output connection)
+- Future: needs alternative PWM approach (e.g. `analogWrite()` or direct timer control)
+
 ## 1.3.1 2026-02-08 14:50 - Oscilloscope changes (feature 3.1)
 
 ### Superposed sync/tone traces
