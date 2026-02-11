@@ -21,9 +21,9 @@
 #define PHASE_SAMPLES 3
 #define SUBSAMPLE_TICKS 4
 #define DETECTION_SAMPLES 5
-#define UNFILTERED_POWER 6
-#define BESSEL 7
-#define PRE 8
+#define RAW_POWER 6
+#define FCARRIER_BESSEL 7
+#define ANTI_ALIASING 8
 
 static constexpr const char* const detectorOutputChannelNames[] = {
     "POWER",
@@ -32,10 +32,10 @@ static constexpr const char* const detectorOutputChannelNames[] = {
     "PHASE_SAMPLES",
     "SUBSAMPLE_TICKS",
     "DETECTION_SAMPLES",
-    "UNFILTERED_POWER",
+    "RAW_POWER",
     "SUBSAMPLE_TICKS",
-    "BESSEL",
-    "PRE"
+    "FCARRIER_BESSEL",
+    "ANTI_ALIASING"
 };
 
 class StateChanged {

@@ -1,5 +1,13 @@
 # Done Changes
 
+## 1.5 2026-02-11 22:08 - Marge threshold menu (feature 3.3)
+
+- Reduced decoded text area from 3 lines to 2 (DECODE_AREA_HEIGHT 54→36, MENU_AREA_Y 56→38)
+- Added "Marge" as 5th menu row (row 4) with 0.005 increment steps
+- Marge value displayed with 2 decimal places, calls `CW_In.set_threshold()` on change
+- Scope bar moved to row 5 (was row 4), NUM_MENU_ROWS 5→6
+- SCOPE_AREA_Y adjusted for the extra menu row
+
 ## 1.4.1 2026-02-11 21:28 - Signal management fixes
 
 - Fixed signal generator DC modes: swapped 1.0 and -1.0 values to match labels (I2S output inverts)

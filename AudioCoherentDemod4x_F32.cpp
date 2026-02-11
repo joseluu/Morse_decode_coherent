@@ -132,14 +132,14 @@ void AudioCoherentDemod4x_F32::update(void)
         // 1. Anti-aliasing pre-filter @ f_carrier*2
         arm_biquad_cascade_df1_f32(&pre_filter, &sample, &current_pre, 1);
         sample = current_pre;
-        out_blocks[1]->data[idx] = current_pre;
+        out_blocks[ANTI_ALIASING]->data[idx] = current_pre;
 
         // todo: decimate to f_carrier *2 and insert search fft
 
         // Lowpass filtering @ f_carrier
         arm_biquad_cascade_df1_f32(&bessel_filter, &sample, &current_bessel, 1);
         sample = current_bessel;
-        out_blocks[2]->data[idx] = current_bessel;
+        out_blocks[FCARRIER_BESSEL]->data[idx] = current_bessel;
 
         // 2. Decimation and phase tracking
         sample_counter++;
@@ -195,6 +195,8 @@ void AudioCoherentDemod4x_F32::update(void)
 // Simple running max normalization
                 if (power > running_max_power) 
                     running_max_power = power;
+                else
+                    running_max_power *= 0.9999f;  // move it up slowly (about 10s time constant for 1KHz sampling rate)
                 if (running_max_power > 1e-12f) {
                     raw_power /= running_max_power;
                     power /= running_max_power;
@@ -236,7 +238,7 @@ void AudioCoherentDemod4x_F32::update(void)
         out_blocks[I_SAMPLES]->data[idx] = I_val;
         out_blocks[Q_SAMPLES]->data[idx] = Q_val;
         out_blocks[PHASE_SAMPLES]->data[idx] = current_phase;
-        out_blocks[UNFILTERED_POWER]->data[idx] = raw_power;
+        out_blocks[RAW_POWER]->data[idx] = raw_power;
         current_detection = (above_threshold ? 1.0f : 0.0f);
         out_blocks[DETECTION_SAMPLES]->data[idx] = current_detection; // output square wave of detection state
 

@@ -104,5 +104,10 @@ Add 2 entries to the AudioMixer9_F32, name the class and file AudioMixer11_F32.
 For the Out Left and Out Right top level functions, add parameters:
 * INPUT
 * SIGNAL INT.
-
+## 3.3 allow to set threshold
+reserve only the first 2 lines for decoded text instead of 3.
+Move up the menu display.
+Add 1 line to the menu, the new top level function is Marge
+fill it with its start value. When setting the Marge parameter
+change value by 0.005 increments for each step.
 

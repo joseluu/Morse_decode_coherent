@@ -32,7 +32,8 @@ The TFT display (320x240, ILI9341) is divided into three zones:
 | 1   | Out Right | Same 11 sources |
 | 2   | Gain      | 0.1, 1.0, 10.0 (controls I2S output gain) |
 | 3   | Sig Gen   | 1.0, 0.0, -1.0, 0.9Hz, 9Hz, 90Hz, 900Hz (internal signal generator) |
-| 4   | Scope     | Button triggers serial CSV output |
+| 4   | Marge     | Detection threshold, 0.005 increments (calls `set_threshold()`) |
+| 5   | Scope     | Button triggers serial CSV output |
 
 A rotary encoder navigates the menu; pushing it enters/exits parameter edit mode.
 

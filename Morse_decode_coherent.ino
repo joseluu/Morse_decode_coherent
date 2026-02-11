@@ -58,13 +58,13 @@ char DisplayLine[num_chars+1];
 
 // Display layout zones
 #define DECODE_AREA_Y      0
-#define DECODE_AREA_HEIGHT 54       // 3 lines of Arial_14 (~18px each)
-#define MENU_AREA_Y        56
+#define DECODE_AREA_HEIGHT 36       // 2 lines of Arial_14 (~18px each)
+#define MENU_AREA_Y        38
 #define MENU_LINE_HEIGHT   22
 #define VERSION_LINE_Y     222      // bottom line for version
 
 // Oscilloscope display constants
-#define SCOPE_AREA_Y       (MENU_AREA_Y + 4 * MENU_LINE_HEIGHT)
+#define SCOPE_AREA_Y       (MENU_AREA_Y + 5 * MENU_LINE_HEIGHT)
 #define SCOPE_AREA_HEIGHT  (VERSION_LINE_Y - SCOPE_AREA_Y)
 #define SCOPE_MS_PER_PIXEL 10
 #define SCOPE_WIPE_AHEAD   10
@@ -113,16 +113,17 @@ float x = 0 ;                 // valeur du bin mesuré_désiré)
 
 //------------------------------- Menu UI
 #define NUM_OUTPUTS 2
-#define NUM_MENU_ROWS 5
+#define NUM_MENU_ROWS 6
 #define NUM_SOURCES 11
 #define NUM_GAIN_VALUES 3
 #define NUM_SIGGEN_MODES 7
 
-const char* menuRowNames[4] = {
+const char* menuRowNames[5] = {
   "Out Left",
   "Out Right",
   "Gain",
-  "Sig Gen"
+  "Sig Gen",
+  "Marge"
 };
 
 const char* sourceNames[NUM_SOURCES] = {
@@ -132,9 +133,9 @@ const char* sourceNames[NUM_SOURCES] = {
   "PHASE",
   "SUBSAMP",
   "DETECT",
-  "UNFILT_P",
-  "BESSEL",
-  "PRE",
+  "RAW_POWER",
+  "FCARRIER_BESSEL",
+  "ANTI_ALIASING",
   "INPUT",
   "SIG INT"
 };
@@ -143,7 +144,7 @@ const char* sourceNames[NUM_SOURCES] = {
 #define SIGNAL_INT_SRC 10
 
 // Current source selection for each output (index into sourceNames)
-int outputSourceSel[NUM_OUTPUTS] = { BESSEL, POWER };
+int outputSourceSel[NUM_OUTPUTS] = { FCARRIER_BESSEL, POWER };  // FCARRIER_BESSEL, POWER (defined later)
 
 // Gain state
 int gainSelIdx = 1;                // default 1.0 (index 1)
@@ -207,7 +208,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.4.1 2026-02-11 21:28"
+#define VERSION "1.5 2026-02-11 22:08"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -229,15 +230,6 @@ AudioConnection_F32          patchCord2(I2s1, 1, CW_In, 0);
 // 2 output selectors: Out Left, Out Right (11-input mixers)
 AudioMixer11_F32             outputSelector[NUM_OUTPUTS];
 
-#define POWER 0
-#define I_SAMPLES 1
-#define Q_SAMPLES 2
-#define PHASE_SAMPLES 3
-#define SUBSAMPLE_TICKS 4
-#define DETECTION_SAMPLES 5
-#define UNFILTERED_POWER 6
-#define BESSEL 7
-#define PRE 8
 
 // Connect all 9 demodulator outputs to each of the 4 selectors
 AudioConnection_F32          cDS00(CW_In, POWER, outputSelector[0], POWER);
@@ -246,9 +238,9 @@ AudioConnection_F32          cDS02(CW_In, Q_SAMPLES, outputSelector[0], Q_SAMPLE
 AudioConnection_F32          cDS03(CW_In, PHASE_SAMPLES, outputSelector[0], PHASE_SAMPLES);
 AudioConnection_F32          cDS04(CW_In, SUBSAMPLE_TICKS, outputSelector[0], SUBSAMPLE_TICKS);
 AudioConnection_F32          cDS05(CW_In, DETECTION_SAMPLES, outputSelector[0], DETECTION_SAMPLES);
-AudioConnection_F32          cDS06(CW_In, UNFILTERED_POWER, outputSelector[0], UNFILTERED_POWER);
-AudioConnection_F32          cDS07(CW_In, BESSEL, outputSelector[0], BESSEL);
-AudioConnection_F32          cDS08(CW_In, PRE, outputSelector[0], PRE);
+AudioConnection_F32          cDS06(CW_In, RAW_POWER, outputSelector[0], RAW_POWER);
+AudioConnection_F32          cDS07(CW_In, FCARRIER_BESSEL, outputSelector[0], FCARRIER_BESSEL);
+AudioConnection_F32          cDS08(CW_In, ANTI_ALIASING, outputSelector[0], ANTI_ALIASING);
 
 AudioConnection_F32          cDS10(CW_In, POWER, outputSelector[1], POWER);
 AudioConnection_F32          cDS11(CW_In, I_SAMPLES, outputSelector[1], I_SAMPLES);
@@ -256,9 +248,9 @@ AudioConnection_F32          cDS12(CW_In, Q_SAMPLES, outputSelector[1], Q_SAMPLE
 AudioConnection_F32          cDS13(CW_In, PHASE_SAMPLES, outputSelector[1], PHASE_SAMPLES);
 AudioConnection_F32          cDS14(CW_In, SUBSAMPLE_TICKS, outputSelector[1], SUBSAMPLE_TICKS);
 AudioConnection_F32          cDS15(CW_In, DETECTION_SAMPLES, outputSelector[1], DETECTION_SAMPLES);
-AudioConnection_F32          cDS16(CW_In, UNFILTERED_POWER, outputSelector[1], UNFILTERED_POWER);
-AudioConnection_F32          cDS17(CW_In, BESSEL, outputSelector[1], BESSEL);
-AudioConnection_F32          cDS18(CW_In, PRE, outputSelector[1], PRE);
+AudioConnection_F32          cDS16(CW_In, RAW_POWER, outputSelector[1], RAW_POWER);
+AudioConnection_F32          cDS17(CW_In, FCARRIER_BESSEL, outputSelector[1], FCARRIER_BESSEL);
+AudioConnection_F32          cDS18(CW_In, ANTI_ALIASING, outputSelector[1], ANTI_ALIASING);
 
 // Connect selectors 0,1 directly to F32 I2S output
 AudioConnection_F32          connectSel0(outputSelector[0], 0, I2s2, 1);   // Out Left
@@ -669,6 +661,12 @@ void handleEncoder(int direction) {
       if (sigGenSelIdx < 0) sigGenSelIdx = NUM_SIGGEN_MODES - 1;
       if (sigGenSelIdx >= NUM_SIGGEN_MODES) sigGenSelIdx = 0;
       sigGen.setMode(sigGenSelIdx);
+    } else if (menuSelectedRow == 4) {
+      // Row 4: Marge threshold (0.005 increments)
+      Marge += direction * 0.005f;
+      if (Marge < 0.0f) Marge = 0.0f;
+      if (Marge > 1.0f) Marge = 1.0f;
+      CW_In.set_threshold(Marge);
     }
   }
   drawMenu();
@@ -676,7 +674,7 @@ void handleEncoder(int direction) {
 }
 
 void handleButton() {
-  if (menuSelectedRow == 4) {
+  if (menuSelectedRow == 5) {
     // Scope serial output: request one sweep of serial data
     scopeSerialRequested = true;
     scopeBarFlashTime = millis();
@@ -729,18 +727,20 @@ void drawMenuRow(int row) {
     tft.print(gainNames[gainSelIdx]);
   } else if (row == 3) {
     tft.print(AudioSignalGenerator_F32::getModeName(sigGenSelIdx));
+  } else if (row == 4) {
+    tft.print(Marge, 2);
   }
 }
 
 void drawMenu() {
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 5; i++) {
     drawMenuRow(i);
   }
   drawScopeBar();
 }
 
 void drawScopeBar() {
-  if (menuSelectedRow == 4) {
+  if (menuSelectedRow == 5) {
     uint16_t color = (millis() - scopeBarFlashTime < 200) ? ILI9341_YELLOW : ILI9341_WHITE;
     tft.fillRect(0, SCOPE_AREA_Y, SCOPE_X_OFFSET, SCOPE_AREA_HEIGHT, color);
   } else {
