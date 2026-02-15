@@ -257,7 +257,7 @@ void AudioCoherentDemodSegmented4x_F32::process_segment(void)
     if (power > running_max_power_)
         running_max_power_ = power;
     else
-        running_max_power_ *= 0.9999f;
+        running_max_power_ *= 0.9995f;
 
     if (running_max_power_ > 1e-12f) {
         raw_power /= running_max_power_;
