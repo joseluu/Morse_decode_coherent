@@ -44,6 +44,7 @@ All-F32 audio path using OpenAudio_ArduinoLibrary:
 - Signal sources routed through `AudioMixer11_F32` (11-input mixer) to `AudioOutputI2S_F32`
 - Additional sources: INPUT (raw Line In), SIG INT (internal signal generator)
 - Output gain controlled via `AudioOutputI2S_F32.setGain()`
+- `AudioCoherentDemodSegmented4x_F32`: alternative demodulator using Hann-windowed overlap analysis for cleaner I/Q extraction — same 9-output interface, drop-in compatible
 
 ### Oscilloscope Display
 

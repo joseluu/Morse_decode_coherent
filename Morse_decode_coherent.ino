@@ -25,6 +25,7 @@
 #include "ili9341_t3n_font_Arial.h"
 #include <Bounce2.h>
 #include "AudioCoherentDemod4x_F32.h"
+#include "AudioCoherentDemodSegmented4x_F32.h"
 #include "AudioMixer11_F32.h"
 #include "AudioSignalGenerator_F32.h"
 
@@ -208,7 +209,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.5 2026-02-11 22:08"
+#define VERSION "1.6 2026-02-15 14:46"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -663,7 +664,7 @@ void handleEncoder(int direction) {
       sigGen.setMode(sigGenSelIdx);
     } else if (menuSelectedRow == 4) {
       // Row 4: Marge threshold (0.005 increments)
-      Marge += direction * 0.005f;
+      Marge += direction * 0.01f;
       if (Marge < 0.0f) Marge = 0.0f;
       if (Marge > 1.0f) Marge = 1.0f;
       CW_In.set_threshold(Marge);

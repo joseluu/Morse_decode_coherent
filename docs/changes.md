@@ -110,4 +110,15 @@ Move up the menu display.
 Add 1 line to the menu, the new top level function is Marge
 fill it with its start value. When setting the Marge parameter
 change value by 0.005 increments for each step.
+## 3.4 adjustments
+increment Marge parameter by 0.01
+## 4. AudioCoherentDemodSegmented4x_F32
+create a new class AudioCoherentDemodSegmented4x_F32 and associated .h and .cpp files
+It is modeled after AudioCoherentDemod4x_F32 and the python function coherent_demodulate_segmented
+The parameters corresponding to the python parameters fs and f_carrier are implicit
+therefore should not appear. The low pass filter at 3Hz lp_filter should be reused 
+and the lowpass_cutoff should not appear as a parameter the other filters
+pre_filter and bessel filter should be reused. The parameter segment_length and
+overlap_factor should be constructor parameters. The window function "hann"
+should not be a parameter, use the hann function.
 

@@ -1,5 +1,23 @@
 # Done Changes
 
+## 1.6 2026-02-15 14:46 - Segmented coherent demodulator (feature 4)
+
+### New class: AudioCoherentDemodSegmented4x_F32
+- Hann-windowed overlap-analysis I/Q extraction (replaces 4x phase-counter trick)
+- Based on Python `coherent_demodulate_segmented` algorithm
+- Constructor: `AudioCoherentDemodSegmented4x_F32(segment_length, overlap_factor)`
+- Same 9-output interface as `AudioCoherentDemod4x_F32` for drop-in compatibility
+- Per-segment I/Q at rate `fs/hop` (~34.56 Hz for segment_length=2500, overlap=0.5)
+- 3 independent LP filters for I, Q, and power at segment rate (3 Hz cutoff, bilinear transform)
+- Reuses pre-filter (Butterworth 4th @ 1800 Hz) and Bessel filter (4th @ 900 Hz) coefficients
+- Static cos/sin LO lookup tables (48 entries, period = fs/fc)
+- Dynamic memory: ~20 KB for segment_length=2500 (ring buffer + Hann window)
+- New files: `AudioCoherentDemodSegmented4x_F32.h`, `AudioCoherentDemodSegmented4x_F32.cpp`
+
+## 1.5.1 2026-02-14 17:25 - Adjustments (feature 3.4)
+
+- Changed Marge increment from 0.005 to 0.01 per encoder step
+
 ## 1.5 2026-02-11 22:08 - Marge threshold menu (feature 3.3)
 
 - Reduced decoded text area from 3 lines to 2 (DECODE_AREA_HEIGHT 54→36, MENU_AREA_Y 56→38)

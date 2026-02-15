@@ -126,7 +126,7 @@ void AudioCoherentDemod4x_F32::update(void)
     int idx = 0;
 
     for (int i = 0; i < AUDIO_BLOCK_SAMPLES; i++) {
-        global_sample_counter++; 
+        global_sample_counter++; // use for timestamping state changes
         float32_t sample = in_block->data[i];
 
         // 1. Anti-aliasing pre-filter @ f_carrier*2
@@ -142,7 +142,7 @@ void AudioCoherentDemod4x_F32::update(void)
         out_blocks[FCARRIER_BESSEL]->data[idx] = current_bessel;
 
         // 2. Decimation and phase tracking
-        sample_counter++;
+        sample_counter++; // persists across blocks
         if (sample_counter >= decimation_factor) {
             sample_counter = 0;
 
