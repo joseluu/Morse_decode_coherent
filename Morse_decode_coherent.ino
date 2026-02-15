@@ -209,7 +209,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.6 2026-02-15 14:46"
+#define VERSION "1.6.1 2026-02-15 15:32"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -222,7 +222,7 @@ const int myInput = AUDIO_INPUT_LINEIN;                 // entrée connecteur 10
 AudioInputI2S_F32                  I2s1;
 AudioOutputI2S_F32                 I2s2;
 
-AudioCoherentDemod4x_F32           CW_In;
+AudioCoherentDemodSegmented4x_F32  CW_In(2500, 0.8f);
 AudioSignalGenerator_F32           sigGen;
 
 // Input: I2s1 ch1 (Line In Right) -> CW_In demodulator (direct F32)

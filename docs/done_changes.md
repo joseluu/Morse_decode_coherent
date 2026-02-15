@@ -1,5 +1,11 @@
 # Done Changes
 
+## 1.6.1 2026-02-15 15:32 - Switch to segmented demodulator
+
+- Replaced `AudioCoherentDemod4x_F32 CW_In` with `AudioCoherentDemodSegmented4x_F32 CW_In(2500, 0.8f)`
+- Parameters: segment_length=2500, overlap_factor=0.8 (hop=500, segment rate ~86.4 Hz)
+- All existing audio connections and API calls remain unchanged (drop-in compatible)
+
 ## 1.6 2026-02-15 14:46 - Segmented coherent demodulator (feature 4)
 
 ### New class: AudioCoherentDemodSegmented4x_F32
