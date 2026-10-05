@@ -28,10 +28,11 @@
 #include "AudioCoherentDemodSegmented4x_F32.h"
 #include "AudioMixer11_F32.h"
 #include "AudioSignalGenerator_F32.h"
+#include "cw_otsu.h"
 
 
                        // signal/tuning indicator
-#define Debug true
+#define Debug false                                 // v1.7 : texte de debug coupe (liaison serie pilotee par le banc)
 
 unsigned long Start_reference = 100;            // choose value midway between dot and dash at target speed
 unsigned long Reference = Start_reference;
@@ -101,6 +102,18 @@ unsigned long scopeBarFlashTime = 0;
 #define CMD_BUF_SIZE 64
 char cmdBuffer[CMD_BUF_SIZE];
 int cmdIndex = 0;
+
+//----------------------------- v1.7 : banc de mesure (log, Otsu, parametres)
+bool logOn = false;                 // "log on" : caracteres decodes envoyes sur Serial
+int  decAlgo = 0;                   // 0 = seuil Marge, 1 = seuil d'Otsu (repli sur Marge avant le premier seuil)
+int  decVar = 1;                    // variable decisionnelle d'Otsu : 0 = puissance normalisee, 1 = sa racine
+CWOtsu otsu;
+float oMargin = 0.0f;                // seuil effectif = seuil Otsu * (1 + oMargin)
+float oSmooth = 0.0f;                // lissage du seuil d'une fenetre a l'autre : thr = oSmooth*thr_prec + (1-oSmooth)*thr_Otsu
+float thrEff = 0.0f;
+uint32_t otsuSeen = 0;
+int  segLen = 2500, hopLen = 500;
+float fcIq = 3.0f, fcPow = 3.0f, fcPre = 1800.0f, decayMax = 0.9995f;
 
 //-----------------------------utilisé par le décodeur
 float Diff = 0.2 ;
@@ -209,7 +222,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.6.1 2026-02-15 15:32"
+#define VERSION "1.7.1-bench 2026-10-05 14:55"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -341,6 +354,8 @@ void setup() {
  //-------------------------------------------------------------- pour le décodage
   Started = false;
   Measuring = false;
+  applyOtsuRange();
+  otsu.reset();
 }
 
 // ----------------------------
@@ -469,6 +484,8 @@ void cmdHelp() {
   Serial.println("  set siggen <mode>     - set signal gen (0-6)");
   Serial.println("  set marge <value>     - set detection threshold");
   Serial.println("  scope                 - output next sweep as CSV");
+  Serial.println("  reset | log on|off | peak [reset]   (bench v1.7)");
+  Serial.println("  set algo|dvar|omargin|osmooth|owin|ofirst|startref|seg|hop|fciq|fcpow|fcpre|decay <v>");
   Serial.print("Sources:");
   for (int i = 0; i < NUM_SOURCES; i++) {
     Serial.print(' ');
@@ -497,6 +514,36 @@ void cmdStatus() {
   Serial.println(AudioSignalGenerator_F32::getModeName(sigGenSelIdx));
   Serial.print("Marge: ");
   Serial.println(Marge, 3);
+  Serial.print("Decoder: Morse_decode_coherent ");
+  Serial.println(VERSION);
+  Serial.printf("algo=%d (0=marge 1=otsu) dvar=%d log=%d\n", decAlgo, decVar, logOn ? 1 : 0);
+  Serial.printf("seg=%d hop=%d fciq=%.3f fcpow=%.3f fcpre=%.1f decay=%.5f startref=%lu\n",
+                segLen, hopLen, fcIq, fcPow, fcPre, decayMax, Start_reference);
+  Serial.printf("omargin=%.3f osmooth=%.3f thr_eff=%.5f\n", oMargin, oSmooth, thrEff * (1.0f + oMargin));
+  Serial.printf("otsu: valid=%d thr=%.5f m0=%.5f m1=%.5f n0=%lu n1=%lu windows=%lu win=%lu first=%lu\n",
+                otsu.valid ? 1 : 0, otsu.threshold, otsu.mean0, otsu.mean1, (unsigned long)otsu.count0,
+                (unsigned long)otsu.count1, (unsigned long)otsu.windows, (unsigned long)otsu.windowMs,
+                (unsigned long)otsu.firstWindowMs);
+}
+
+void applyOtsuRange() {
+  if (decVar == 1) otsu.setRange(1e-3f, 1.5f); else otsu.setRange(1e-5f, 2.0f);
+}
+
+void applyDemod() {
+  CW_In.configure(segLen, hopLen, fcIq, fcPow, fcPre, decayMax);
+}
+
+void resetDecoder() {
+  CW_In.reset_state();
+  applyOtsuRange();
+  otsu.reset();
+  otsuSeen = 0;
+  Reference = Start_reference;
+  Tone_min = 9999L; Tone_max = 0L; Tone_index = 0; Symbol_count = 0;
+  Index = 63; Offset = 32; Count = 6;
+  Started = false; Measuring = false; Tone = false;
+  Trailing_edge = millis();
 }
 
 void executeCommand(char* cmd) {
@@ -513,6 +560,17 @@ void executeCommand(char* cmd) {
     cmdHelp();
   } else if (strcmp(cmd, "status") == 0) {
     cmdStatus();
+  } else if (strcmp(cmd, "reset") == 0) {
+    resetDecoder();
+    Serial.println("reset ok");
+  } else if (strncmp(cmd, "log ", 4) == 0) {
+    logOn = (strcmp(cmd + 4, "on") == 0);
+    Serial.println(logOn ? "log on" : "log off");
+  } else if (strcmp(cmd, "peak reset") == 0) {
+    CW_In.reset_peak();
+    Serial.println("peak reset");
+  } else if (strcmp(cmd, "peak") == 0) {
+    Serial.printf("ADC peak max=%.5f min=%.5f\n", CW_In.peak_max(), -CW_In.peak_min());
   } else if (strcmp(cmd, "scope") == 0) {
     scopeSerialRequested = true;
     Serial.println("Scope serial requested");
@@ -581,6 +639,32 @@ void executeCommand(char* cmd) {
       } else {
         Serial.println("Error: invalid value");
       }
+    } else if (strncmp(arg, "algo ", 5) == 0) {
+      decAlgo = atoi(arg + 5) ? 1 : 0; otsu.reset(); otsuSeen = 0; Serial.printf("algo = %d\n", decAlgo);
+    } else if (strncmp(arg, "dvar ", 5) == 0) {
+      decVar = atoi(arg + 5) ? 1 : 0; applyOtsuRange(); otsu.reset(); otsuSeen = 0; Serial.printf("dvar = %d\n", decVar);
+    } else if (strncmp(arg, "omargin ", 8) == 0) {
+      oMargin = atof(arg + 8); Serial.printf("omargin = %.3f\n", oMargin);
+    } else if (strncmp(arg, "osmooth ", 8) == 0) {
+      oSmooth = atof(arg + 8); Serial.printf("osmooth = %.3f\n", oSmooth);
+    } else if (strncmp(arg, "owin ", 5) == 0) {
+      otsu.windowMs = (uint32_t)atol(arg + 5); Serial.printf("owin = %lu\n", (unsigned long)otsu.windowMs);
+    } else if (strncmp(arg, "ofirst ", 7) == 0) {
+      otsu.firstWindowMs = (uint32_t)atol(arg + 7); Serial.printf("ofirst = %lu\n", (unsigned long)otsu.firstWindowMs);
+    } else if (strncmp(arg, "startref ", 9) == 0) {
+      Start_reference = (unsigned long)atol(arg + 9); Serial.printf("startref = %lu\n", Start_reference);
+    } else if (strncmp(arg, "seg ", 4) == 0) {
+      segLen = constrain(atoi(arg + 4), 200, 12000); applyDemod(); Serial.printf("seg = %d\n", segLen);
+    } else if (strncmp(arg, "hop ", 4) == 0) {
+      hopLen = constrain(atoi(arg + 4), 50, 6000); applyDemod(); Serial.printf("hop = %d\n", hopLen);
+    } else if (strncmp(arg, "fciq ", 5) == 0) {
+      fcIq = atof(arg + 5); applyDemod(); Serial.printf("fciq = %.3f\n", fcIq);
+    } else if (strncmp(arg, "fcpow ", 6) == 0) {
+      fcPow = atof(arg + 6); applyDemod(); Serial.printf("fcpow = %.3f\n", fcPow);
+    } else if (strncmp(arg, "fcpre ", 6) == 0) {
+      fcPre = atof(arg + 6); applyDemod(); Serial.printf("fcpre = %.1f\n", fcPre);
+    } else if (strncmp(arg, "decay ", 6) == 0) {
+      decayMax = atof(arg + 6); applyDemod(); Serial.printf("decay = %.5f\n", decayMax);
     } else {
       Serial.println("Error: unknown set parameter");
     }
@@ -803,7 +887,24 @@ boolean sample() {
       Serial.println(toneValue > Marge);
     }
 
-    if (toneValue > Marge) {
+    bool isTone;
+    if (decAlgo == 1) {
+      float v = (decVar == 1) ? sqrtf(toneValue) : toneValue;
+      otsu.add(v);
+      if (otsu.valid) {
+        if (otsu.windows != otsuSeen) {
+          otsuSeen = otsu.windows;
+          thrEff = (otsuSeen == 1 || oSmooth <= 0.0f) ? otsu.threshold : oSmooth * thrEff + (1.0f - oSmooth) * otsu.threshold;
+        }
+        isTone = v > thrEff * (1.0f + oMargin);
+      } else {
+        isTone = toneValue > Marge;
+      }
+    } else {
+      isTone = toneValue > Marge;
+    }
+
+    if (isTone) {
       tone_++;
       Tone = true;
       digitalWrite(LED, HIGH);                                  // LED glows when signal present
@@ -834,8 +935,8 @@ void decode() {
    
 
     if ((millis() - Trailing_edge) > Reference * 3) {           // detect word end
-      if (Debug) {
-      Serial.print(' ');  
+      if (logOn) {
+      Serial.print(' ');
       }                                      // if so insert a space
       //sendToTFT1(' ');
     }
@@ -934,9 +1035,9 @@ void decode() {
       }
 
       // ----- print letter
-      if (Debug) {
-        Serial.print(Symbol[Index]); 
-      } 
+      if (logOn) {
+        Serial.print(Symbol[Index]);
+      }
       if(Symbol[Index] > 0x20)                       // print letter to Serial Monitor
       {
         sendToTFT1(Symbol[Index]); 

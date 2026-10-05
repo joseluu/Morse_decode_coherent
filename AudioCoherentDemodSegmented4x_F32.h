@@ -31,13 +31,27 @@ public:
     float32_t get_f_sampling(void) const;
     float32_t get_lowpass_cutoff(void) const;
 
+    // --- bench additions (v1.7) ---
+    // Rebuild segment geometry and filters at runtime. seg/hop in samples, cutoffs in Hz, decay = running-max decay per hop.
+    void configure(int segment_length, int hop, float fc_iq, float fc_pow, float fc_pre, float decay);
+    void reset_state(void);                       // clear filters, ring, normalisation and queues
+    int get_segment_length() const { return segment_length_; }
+    int get_hop() const { return hop_; }
+    float get_fc_iq() const { return fc_iq_; }
+    float get_fc_pow() const { return fc_pow_; }
+    float get_fc_pre() const { return fc_pre_; }
+    float get_decay() const { return decay_; }
+    float peak_max() const { return peak_max_; }  // max / min of the raw input samples since reset_peak()
+    float peak_min() const { return peak_min_; }
+    void reset_peak() { peak_max_ = 0.0f; peak_min_ = 0.0f; }
+
 private:
     void process_segment(void);
+    void build(void);                             // (re)allocate buffers and compute all filter coefficients
 
     // Constants (implicit, not constructor parameters)
     static constexpr float32_t f_sampling_ = 43200.0f;
     static constexpr float32_t f_carrier_ = 900.0f;
-    static constexpr float32_t lowpass_cutoff_ = 3.0f;
     static constexpr int lo_period_ = 48;  // f_sampling / f_carrier
 
     // Segment parameters (from constructor)
@@ -80,9 +94,13 @@ private:
     float32_t lp_state_power_[4];
 
     // Coefficient arrays (must persist — CMSIS stores pointers)
-    float32_t lp_seg_sos_[5];      // computed at runtime for segment rate
-    static float32_t pre_sos_[10]; // 2 stages x 5 coefficients
+    float32_t lp_seg_sos_[5];      // I/Q low-pass, computed at runtime for segment rate
+    float32_t lp_pow_sos_[5];      // power low-pass
+    float32_t pre_sos_[10];        // 2 stages x 5 coefficients (runtime Butterworth 4th)
     static float32_t bessel_sos_[10];
+
+    float fc_iq_, fc_pow_, fc_pre_, decay_;
+    float peak_max_, peak_min_;
 
     // Running normalization
     float32_t running_max_power_;
