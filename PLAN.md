@@ -45,7 +45,7 @@ méthode de décision (reste seulement comme repli avant le premier seuil tant q
 | 5.2 | Idem avec `set norm 0` (puissance brute, histogramme log large, pas de repli Marge : pas de décision avant le 1er seuil) | on retire le maximum glissant si dynamique > 35 dB **ou** perte < 10 dB | fait : 0 % partout (≥ 54 dB, perte 0 dB) → retiré |
 | 5.3 | Si retiré : Optuna Otsu seul (sans `tau`) à −10 dB ; si 0 % : confirmation sur plusieurs séquences | 0 % reproduit | fait : jeux A et B à 0 % sur 3 séquences (voir STATUS) |
 | 5.4 | Si 5.3 confirmé : Optuna Otsu à −12 dB | — | fait : 109 essais, meilleur confirmé 1,1 % moyen (0 % non reproductible, voir STATUS) |
-| 5.5 | Suivi de dérive en fréquence (méthode proche de celle du 1024_Tone : estimateur de rotation de phase entre segments successifs ; ici avec dé-rotation de I/Q en boucle fermée) | test : balayage d'offset de fréquence (encodeur `freq`) et dérive lente, CER avec/sans suivi | fait : suivi OK jusqu’à ±6 Hz statique, dérive 12 Hz/300 s : 47 % → 4,9 % (STATUS 08:16–08:31) |
+| 5.5 | Suivi de dérive en fréquence (méthode proche de celle du 1024_Tone : estimateur de rotation de phase entre segments successifs ; ici avec dé-rotation de I/Q en boucle fermée) | test : balayage d'offset de fréquence (encodeur `freq`) et dérive lente, CER avec/sans suivi | fait : suivi OK jusqu’à ±6 Hz statique, dérive 12 Hz/300 s : 47 % → 4,9 % (STATUS 08:16–08:31) ; revalidation du jeu −12 dB : dérive 36,6 % → 0,4 %, dynamique 0 % de +6 à −48 dB, 0 % à −10 dB (STATUS 12:41) |
 | 5.6 | Clôture : STATUS.md, commit local (le push attend une demande explicite) | — | fait (voir STATUS 08:50) |
 
 Note : firmware 1.7.2-bench = 1.7.1 + commande `set norm 0|1` (par défaut 1 : comportement inchangé).

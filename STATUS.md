@@ -215,3 +215,29 @@ Meilleur jeu confirmé (CER moyen 1,08 %, max 3,25 % sur 3 × 165 s à −12 dB 
 `set norm 0;set algo 1;set seg 4700;set hop 650;set fciq 5.749;set fcpow 7.480;set fcpre 1190.2;set decay 0.999349;set startref 200;set dvar 1;set owin 8000;set omargin -0.120;set osmooth 0.766`
 (copie dans `data/coh/freq_pre_best12.txt`). Non adopté comme défaut du firmware (les défauts restent `algo 0`, `norm 1`, `track 0`) ; à appliquer par `set` après chaque flash ou reset.
 Revalidation de ce jeu (courbe CER/SNR, dynamique, suivi de fréquence) lancée à 11:27 (`bench/coh_chain5.sh`, `data/coh/campaign_reval12.log`).
+
+## 2026-10-06 12:41 — Revalidation du jeu retenu à −12 dB (norm 0, Otsu ; firmware 1.7.2-bench ; `bench/coh_chain5.sh`, `data/coh/campaign_reval12.log`)
+Jeu : seg 4700, hop 650, fciq 5,749, fcpow 7,480, fcpre 1190,2, startref 200, owin 8000, omargin −0,120, osmooth 0,766 (`data/coh/freq_pre_best12.txt`). 10 WPM.
+
+**Courbe CER vs SNR** (niveau compensé, crête ADC 0,09, 165 s/point, une passe, `--nospace`, `data/coh/curve_coh_best12_10wpm.csv`) :
+| SNR (dB) | 0 | −6 | −10 | −12 | −14 | −16 | −20 |
+|---|---|---|---|---|---|---|---|
+| Jeu −12 dB | 0 % | 0 % | **0 %** | 4,9 % | 29,3 % | 58,5 % | 72,4 % |
+| (réf. jeu B −16 dB, curve_coh_opt_otsu) | 0 % | – | 0 % | – | – | 26,8 % à −15 | 72,0 % |
+→ 0 % jusqu'à −10 dB (une passe de ≈ 145 caractères) ; à −12 dB 4,9 % (S/I/D 2/2/2) : cohérent avec la confirmation (moyenne 1,1 %, max 3,3 %) compte tenu de la dispersion (±4 points).
+Le jeu ne devient pas meilleur au-delà de −12 dB (−14 : 29 %, −16 : 59 %) ; le jeu B, optimisé à −16 dB, reste meilleur à −15/−16 dB (26,8 % à −15).
+
+**Dynamique d'entrée** (SNR −5 dB, 110 s/point, `data/coh/level_coh_best12_10wpm.csv`) : **0 % d'erreur aux 10 niveaux, +6 … −48 dB** (n = 94…100 caractères) — dynamique ≥ 54 dB inchangée, la limite
+basse n'est toujours pas atteinte (plancher de bruit de l'ADC non atteint).
+
+**Suivi de fréquence, statique** (SNR −5 dB, 110 s/point, `data/coh/freq_static_best12.csv`) :
+| Écart | track 0 : CER / foff | track 1 : CER / foff / fcorr |
+|---|---|---|
+| 0 Hz | 0 % / +0,13 | 0 % / −0,11 / −0,26 |
+| +6 Hz | 48,8 % / +5,2 | **0 %** / +5,3 / +5,38 |
+| −6 Hz | 34,1 % / −5,1 | **0 %** / −5,3 / −5,03 |
+**Dérive 0 → +12 Hz sur 300 s** (`data/coh/freq_drift_best12.csv`) : track 0 : 36,6 % (320 caractères) ; **track 1 : 0,4 %** (262 caractères, fcorr final +6,15, foff +6,3).
+
+**Comparaison avec le jeu B** (−16 dB) : même plage de suivi (±6 Hz statique) ; dérive 36,6 % → 0,4 % (jeu B : 47,3 % → 4,9 %) ; dynamique identique (0 % de +6 à −48 dB) ; courbe : 0 % à −10 dB pour les deux, jeu −12 dB 4,9 % à −12 dB.
+Le jeu −12 dB (fciq 5,7, fcpow 7,5) est un peu plus rapide que le jeu B (fciq 4,0, fcpow 4,8) : meilleur suivi de dérive, un peu moins bon à −15/−16 dB. Une seule passe par point (±4 points).
+Les deux cartes vérifiées après la chaîne (by-id, gain codeur 0,05).
