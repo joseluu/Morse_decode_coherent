@@ -286,3 +286,27 @@ Le 0 % de la recherche (≈ 145 caractères) ne se reproduit pas à l'identique 
 (copie dans `data/coh15/pre_best15_m10.txt`). Non adopté comme défaut du firmware ; à appliquer par `set` après chaque flash.
 Fichiers : `data/coh/optuna_coh15_otsu_norm0_snr-{6,10}.{csv,db,log}`, `data/coh/coh15_optuna_snr-{6,10}.out`, `data/coh15/`. Scripts : `bench/coh_chain6.sh`, `bench/coh_pre_trial.py`, `bench/coh_confirm_multi.py --wpm 15`.
 Limites : un seul tirage de la graine, pas de test de dynamique ni de suivi de fréquence à 15 WPM avec ce jeu.
+
+### Comparatif des paramètres optimums : 10 WPM contre 15 WPM (Otsu, `norm 0`)
+10 WPM : jeu retenu à −12 dB (étude 5, 109 essais, 1,1 % moyen confirmé à −12 dB). 15 WPM : jeu retenu à −10 dB (phase C, 56 essais, 1,3 % moyen confirmé à −10 dB). Point Morse : 120 ms à 10 WPM, 80 ms à 15 WPM (rapport 1,5).
+Les jeux « à 0 % à −10 dB » de 10 WPM (A, B de l'étude 4) sont rappelés pour mesurer la dispersion entre bons jeux.
+
+| Paramètre | Zone de recherche | 10 WPM retenu (−12 dB) | 10 WPM jeu A (−10 dB) | 10 WPM jeu B (−10 dB) | 15 WPM retenu (−10 dB) | Rapport 15/10 (retenus) |
+|---|---|---|---|---|---|---|
+| `seg` (échantillons) | 800 … 6000 | 4700 (108,8 ms) | 4900 | 4500 | 3400 (78,7 ms) | ×0,72 |
+| `seg` / durée du point | — | 0,91 | 0,95 | 0,87 | 0,98 | ≈ 1 : fenêtre ≈ un point |
+| `hop` (échantillons) | 100 … 1000 | 650 (15,0 ms) | 700 | 300 | 650 (15,0 ms) | ×1,00 |
+| `fciq` (Hz) | 0,8 … 12 | 5,75 | 6,25 | 3,98 | 8,955 | ×1,56 |
+| `fcpow` (Hz) | 0,8 … 14 | 7,48 | 9,20 | 4,82 | 9,567 | ×1,28 |
+| `fcpre` (Hz) | 1000 … 4000 | 1190 | 1427 | 1272 | 2517 | ×2,1 |
+| `startref` | 60 … 200 | 200 | 200 | 140 | 180 | ×0,9 |
+| `dvar` | 0 … 1 | 1 | 1 | 1 | 1 | = |
+| `owin` (ms) | 5000 … 30 000 | 8000 | 28 000 | 13 000 | 27 000 | ×3,4 |
+| `omargin` | −0,3 … +0,3 | −0,120 | −0,077 | −0,067 | −0,063 | ≈ −0,06 à −0,12 |
+| `osmooth` | 0 … 0,9 | 0,766 | 0,646 | 0,808 | 0,776 | ≈ 0,65 à 0,8 |
+| CER confirmé (3 × 165 s) | — | 1,1 % à −12 dB | 0 % à −10 dB | 0 % à −10 dB | 1,3 % à −10 dB | seuil ≈ +2 dB à 15 WPM |
+
+Lecture : `hop` (≈ 15 ms), `dvar 1`, `startref` ≈ 180–200, `omargin` ≈ −0,06…−0,12 et `osmooth` ≈ 0,65…0,8 sont stables d'une vitesse à l'autre. `seg` suit la durée du point (fenêtre ≈ 0,9–1,0 point), `fciq`
+(×1,56) suit la vitesse (×1,5). `fcpow` monte moins vite (×1,28). `fcpre` doublerait à 15 WPM mais la plage 1190–2517 Hz est plate à 10 WPM (jeux à 1272…2585 équivalents) : à ne pas sur-interpréter.
+`owin` n'est pas discriminant : à 10 WPM des jeux à 0 % existent de 8000 à 28 000 ms, et à 15 WPM tous les bons essais sont à 25 000–29 000 ms (borne haute 30 000, à élargir si on poursuit).
+Dispersion : la confirmation à −10/−12 dB classe les jeux à ≈ ±1–2 points ; ces écarts entre jeux voisins sont dans le bruit de mesure.
