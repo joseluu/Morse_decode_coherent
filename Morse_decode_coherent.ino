@@ -106,6 +106,7 @@ int cmdIndex = 0;
 //----------------------------- v1.7 : banc de mesure (log, Otsu, parametres)
 bool logOn = false;                 // "log on" : caracteres decodes envoyes sur Serial
 int  decAlgo = 0;                   // 0 = seuil Marge, 1 = seuil d'Otsu (repli sur Marge avant le premier seuil)
+bool normOn = true;                 // normalisation par maximum glissant du demodulateur (set norm 0|1)
 int  decVar = 1;                    // variable decisionnelle d'Otsu : 0 = puissance normalisee, 1 = sa racine
 CWOtsu otsu;
 float oMargin = 0.0f;                // seuil effectif = seuil Otsu * (1 + oMargin)
@@ -222,7 +223,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.7.1-bench 2026-10-05 14:55"
+#define VERSION "1.7.2-bench 2026-10-05 23:45"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -485,7 +486,7 @@ void cmdHelp() {
   Serial.println("  set marge <value>     - set detection threshold");
   Serial.println("  scope                 - output next sweep as CSV");
   Serial.println("  reset | log on|off | peak [reset]   (bench v1.7)");
-  Serial.println("  set algo|dvar|omargin|osmooth|owin|ofirst|startref|seg|hop|fciq|fcpow|fcpre|decay <v>");
+  Serial.println("  set algo|norm|track|trackk|dvar|omargin|osmooth|owin|ofirst|startref|seg|hop|fciq|fcpow|fcpre|decay <v>");
   Serial.print("Sources:");
   for (int i = 0; i < NUM_SOURCES; i++) {
     Serial.print(' ');
@@ -516,7 +517,8 @@ void cmdStatus() {
   Serial.println(Marge, 3);
   Serial.print("Decoder: Morse_decode_coherent ");
   Serial.println(VERSION);
-  Serial.printf("algo=%d (0=marge 1=otsu) dvar=%d log=%d\n", decAlgo, decVar, logOn ? 1 : 0);
+  Serial.printf("algo=%d (0=marge 1=otsu) dvar=%d norm=%d log=%d track=%d fcorr=%+.3f\n", decAlgo, decVar, normOn ? 1 : 0, logOn ? 1 : 0, CW_In.get_track() ? 1 : 0, CW_In.f_corr());
+  Serial.printf("foff: %+.3f %.6f %lu\n", CW_In.foff_hz(), CW_In.foff_conf(), (unsigned long)CW_In.foff_updates());
   Serial.printf("seg=%d hop=%d fciq=%.3f fcpow=%.3f fcpre=%.1f decay=%.5f startref=%lu\n",
                 segLen, hopLen, fcIq, fcPow, fcPre, decayMax, Start_reference);
   Serial.printf("omargin=%.3f osmooth=%.3f thr_eff=%.5f\n", oMargin, oSmooth, thrEff * (1.0f + oMargin));
@@ -527,7 +529,8 @@ void cmdStatus() {
 }
 
 void applyOtsuRange() {
-  if (decVar == 1) otsu.setRange(1e-3f, 1.5f); else otsu.setRange(1e-5f, 2.0f);
+  if (normOn) { if (decVar == 1) otsu.setRange(1e-3f, 1.5f); else otsu.setRange(1e-5f, 2.0f); }
+  else        { if (decVar == 1) otsu.setRange(1e-6f, 2.0f); else otsu.setRange(1e-12f, 4.0f); }
 }
 
 void applyDemod() {
@@ -574,6 +577,8 @@ void executeCommand(char* cmd) {
   } else if (strcmp(cmd, "scope") == 0) {
     scopeSerialRequested = true;
     Serial.println("Scope serial requested");
+  } else if (strcmp(cmd, "foff") == 0) {
+    Serial.printf("foff: %+.3f %.6f %lu\n", CW_In.foff_hz(), CW_In.foff_conf(), (unsigned long)CW_In.foff_updates());
   } else if (strncmp(cmd, "set ", 4) == 0) {
     char* arg = cmd + 4;
     while (*arg == ' ') arg++;
@@ -641,6 +646,12 @@ void executeCommand(char* cmd) {
       }
     } else if (strncmp(arg, "algo ", 5) == 0) {
       decAlgo = atoi(arg + 5) ? 1 : 0; otsu.reset(); otsuSeen = 0; Serial.printf("algo = %d\n", decAlgo);
+    } else if (strncmp(arg, "norm ", 5) == 0) {
+      normOn = atoi(arg + 5) ? true : false; CW_In.set_norm(normOn); applyOtsuRange(); otsu.reset(); otsuSeen = 0; Serial.printf("norm = %d\n", normOn ? 1 : 0);
+    } else if (strncmp(arg, "track ", 6) == 0) {
+      CW_In.set_track(atoi(arg + 6) ? true : false); Serial.printf("track = %d\n", CW_In.get_track() ? 1 : 0);
+    } else if (strncmp(arg, "trackk ", 7) == 0) {
+      CW_In.set_track_gain(atof(arg + 7)); Serial.printf("trackk = %.3f\n", atof(arg + 7));
     } else if (strncmp(arg, "dvar ", 5) == 0) {
       decVar = atoi(arg + 5) ? 1 : 0; applyOtsuRange(); otsu.reset(); otsuSeen = 0; Serial.printf("dvar = %d\n", decVar);
     } else if (strncmp(arg, "omargin ", 8) == 0) {
@@ -898,7 +909,7 @@ boolean sample() {
         }
         isTone = v > thrEff * (1.0f + oMargin);
       } else {
-        isTone = toneValue > Marge;
+        isTone = normOn ? (toneValue > Marge) : false;
       }
     } else {
       isTone = toneValue > Marge;

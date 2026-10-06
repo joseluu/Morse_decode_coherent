@@ -34,6 +34,17 @@ public:
     // --- bench additions (v1.7) ---
     // Rebuild segment geometry and filters at runtime. seg/hop in samples, cutoffs in Hz, decay = running-max decay per hop.
     void configure(int segment_length, int hop, float fc_iq, float fc_pow, float fc_pre, float decay);
+    void set_norm(bool on) { norm_ = on; }          // running-max normalisation on/off (off = raw power, Otsu alone handles level)
+    bool get_norm() const { return norm_; }
+    // Frequency tracking: the phase rotation between successive segment phasors z_k*conj(z_k-1) gives the tone offset from 900 Hz
+    // (indicator, always computed); with track on, the phasors are de-rotated by the running estimate (closed loop).
+    void set_track(bool on) { track_ = on; if (!on) { f_corr_ = 0.0f; rot_phase_ = 0.0f; } }
+    bool get_track() const { return track_; }
+    void set_track_gain(float k) { track_gain_ = k; }
+    float foff_hz() const { return foff_hz_; }          // smoothed estimate of (tone - 900 Hz), signed
+    float foff_conf() const { return foff_conf_; }      // coherence of the last estimate (0..1)
+    uint32_t foff_updates() const { return foff_updates_; }
+    float f_corr() const { return f_corr_; }
     void reset_state(void);                       // clear filters, ring, normalisation and queues
     int get_segment_length() const { return segment_length_; }
     int get_hop() const { return hop_; }
@@ -104,6 +115,19 @@ private:
 
     // Running normalization
     float32_t running_max_power_;
+    bool norm_ = true;
+
+    // Frequency tracking state
+    bool track_ = false;
+    float track_gain_ = 0.7f;
+    float f_corr_ = 0.0f;           // Hz, correction applied by the closed loop
+    float rot_phase_ = 0.0f;        // rad
+    float zp_re_ = 0.0f, zp_im_ = 0.0f;   // previous (de-rotated) phasor
+    float zhi_ = 0.0f;              // slow peak tracker of |z|^2 (gate)
+    float S_re_ = 0.0f, S_im_ = 0.0f, S_abs_ = 0.0f;
+    int S_n_ = 0, upd_count_ = 0;
+    float foff_hz_ = 0.0f, foff_conf_ = 0.0f;
+    uint32_t foff_updates_ = 0;
 
     // Current values for output block repetition
     float32_t current_pre_;

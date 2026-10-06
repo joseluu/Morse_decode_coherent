@@ -105,6 +105,9 @@ void AudioCoherentDemodSegmented4x_F32::build(void)
     arm_biquad_cascade_df1_init_f32(&lp_filter_power_, 1, lp_pow_sos_, lp_state_power_);
 
     running_max_power_ = 0.0f;
+    f_corr_ = 0.0f; rot_phase_ = 0.0f; zp_re_ = zp_im_ = 0.0f; zhi_ = 0.0f;
+    S_re_ = S_im_ = S_abs_ = 0.0f; S_n_ = 0; upd_count_ = 0;
+    foff_hz_ = 0.0f; foff_conf_ = 0.0f; foff_updates_ = 0;
     above_threshold_ = false;
     power_queue_.clear();
     state_changes_.clear();
@@ -274,6 +277,50 @@ void AudioCoherentDemodSegmented4x_F32::process_segment(void)
     I_sum *= 2.0f / segment_length_;
     Q_sum *= 2.0f / segment_length_;
 
+    // Frequency tracking / indicator on the segment phasor z = I + jQ
+    {
+        const float seg_rate = f_sampling_ / (float)hop_;
+        const float two_pi = 2.0f * (float)M_PI;
+        float zr = I_sum, zi = Q_sum;
+        if (track_) {
+            rot_phase_ += two_pi * f_corr_ / seg_rate;
+            if (rot_phase_ > (float)M_PI) rot_phase_ -= two_pi; else if (rot_phase_ < -(float)M_PI) rot_phase_ += two_pi;
+            float cs = cosf(rot_phase_), sn = sinf(rot_phase_);
+            zr = I_sum * cs - Q_sum * sn;
+            zi = I_sum * sn + Q_sum * cs;
+            I_sum = zr; Q_sum = zi;
+        }
+        float m = zr * zr + zi * zi;
+        zhi_ = (m > zhi_) ? m : zhi_ * (1.0f - 1.0f / (30.0f * seg_rate));       // peak tracker, tau ~ 30 s
+        float mp = zp_re_ * zp_re_ + zp_im_ * zp_im_;
+        float gate = 0.3f * zhi_;
+        if (m > gate && mp > gate) {
+            S_re_ += zr * zp_re_ + zi * zp_im_;
+            S_im_ += zi * zp_re_ - zr * zp_im_;
+            S_abs_ += sqrtf(m * mp);
+            S_n_++;
+        }
+        zp_re_ = zr; zp_im_ = zi;
+        if (++upd_count_ >= (int)(0.5f * seg_rate)) {                           // estimate every ~0.5 s
+            upd_count_ = 0;
+            if (S_n_ >= 5 && S_abs_ > 0.0f) {
+                float coh = sqrtf(S_re_ * S_re_ + S_im_ * S_im_) / S_abs_;
+                float e = -atan2f(S_im_, S_re_) * seg_rate / two_pi;            // residual offset (Hz)
+                float f_now = f_corr_ + e;
+                if (coh > 0.5f) {
+                    foff_hz_ = (foff_updates_ == 0) ? f_now : 0.7f * foff_hz_ + 0.3f * f_now;
+                    foff_conf_ = coh;
+                    foff_updates_++;
+                    if (track_) {
+                        f_corr_ += track_gain_ * e;
+                        if (f_corr_ > 20.0f) f_corr_ = 20.0f; else if (f_corr_ < -20.0f) f_corr_ = -20.0f;
+                    }
+                }
+            }
+            S_re_ = S_im_ = S_abs_ = 0.0f; S_n_ = 0;
+        }
+    }
+
     // LP filter I and Q independently
     float32_t I_filt, Q_filt;
     arm_biquad_cascade_df1_f32(&lp_filter_I_, &I_sum, &I_filt, 1);
@@ -296,7 +343,7 @@ void AudioCoherentDemodSegmented4x_F32::process_segment(void)
     else
         running_max_power_ *= decay_;
 
-    if (running_max_power_ > 1e-12f) {
+    if (norm_ && running_max_power_ > 1e-12f) {
         raw_power /= running_max_power_;
         power /= running_max_power_;
     }
