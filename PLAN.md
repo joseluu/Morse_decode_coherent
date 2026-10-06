@@ -49,3 +49,12 @@ méthode de décision (reste seulement comme repli avant le premier seuil tant q
 | 5.6 | Clôture : STATUS.md, commit local (le push attend une demande explicite) | — | fait (voir STATUS 08:50) |
 
 Note : firmware 1.7.2-bench = 1.7.1 + commande `set norm 0|1` (par défaut 1 : comportement inchangé).
+
+## Phase 6 — 15 WPM (2026-10-06)
+| # | Étape | Critère | Résultat |
+|---|---|---|---|
+| 6.1 | Courbe du jeu −12 dB (10 WPM) à 15 WPM | niveau à 0 % ? | non : jeu inadapté (seg trop long) |
+| 6.2 | Optuna exploratoire à −6 dB, 15 WPM (étude `coh15_otsu_norm0_snr-6`) | jeux à 0 % | fait : 22 essais, 6 à 0 % |
+| 6.3 | Courbes CER/SNR des meilleurs jeux de 6.2 | X = SNR le plus bas à 0 % | fait : X = −8 dB |
+| 6.4 | Optuna à X − 2 = −10 dB (étude `coh15_otsu_norm0_snr-10`) + confirmation 5 × 3 × 165 s | 0 % reproduit | fait : 56 essais ; meilleur (essai 47) 1,3 % moyen confirmé, 0 % non reproduit à l'identique (voir STATUS 20:30) |
+| 6.5 | Suite éventuelle : dynamique et suivi de fréquence à 15 WPM avec le jeu retenu ; plus de répétitions | — | non fait (non demandé) |

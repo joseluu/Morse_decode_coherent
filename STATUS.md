@@ -241,3 +241,48 @@ basse n'est toujours pas atteinte (plancher de bruit de l'ADC non atteint).
 **Comparaison avec le jeu B** (−16 dB) : même plage de suivi (±6 Hz statique) ; dérive 36,6 % → 0,4 % (jeu B : 47,3 % → 4,9 %) ; dynamique identique (0 % de +6 à −48 dB) ; courbe : 0 % à −10 dB pour les deux, jeu −12 dB 4,9 % à −12 dB.
 Le jeu −12 dB (fciq 5,7, fcpow 7,5) est un peu plus rapide que le jeu B (fciq 4,0, fcpow 4,8) : meilleur suivi de dérive, un peu moins bon à −15/−16 dB. Une seule passe par point (±4 points).
 Les deux cartes vérifiées après la chaîne (by-id, gain codeur 0,05).
+
+## 2026-10-06 20:30 — 15 WPM : niveau à 0 % de CER, puis Optuna 2 dB plus bas (norm 0, Otsu ; firmware 1.7.2-bench)
+Demande : « optimisation Optuna à 15 WPM, trouver le niveau où l'on atteint 0 % de CER et optimiser 2 dB plus bas ». 15 WPM = `set_speed_15wpm()` du codeur (point ≈ 80 ms contre 120 ms à 10 WPM). Mêmes réglages de banc que la synthèse
+ci-dessus (gain codeur 0,0091, `--nospace`, `norm 0`, `algo 1`). Le jeu −12 dB retenu à 10 WPM (seg 4700) ne donne **aucun niveau à 0 %** à 15 WPM (`data/coh15/curve_coh_best12_15wpm.csv`) : fenêtre `seg` trop longue
+par rapport au point de 80 ms. D'où trois phases : **A** Optuna exploratoire à −6 dB pour obtenir un jeu adapté à 15 WPM, **B** courbes CER/SNR des meilleurs jeux pour fixer le niveau X à 0 %, **C** Optuna à X − 2 dB.
+
+### Phase B — courbes CER/SNR à 15 WPM (165 s par point, `bench/coh_chain6.sh`, `data/coh15/curve_coh15_t{2,14,20}.csv`)
+| Jeu (essai de A) | 0 dB | −6 dB | −8 dB | −10 dB | −12 dB |
+|---|---|---|---|---|---|
+| essai 2 | 0 % | 0,98 % | **0 %** | 2,4 % | 11,7 % |
+| essai 14 | — | — | **0 %** | 1,5 % | 17,6 % |
+| essai 20 | — | — | 2,9 % | 4,9 % | 19,5 % |
+
+**X = −8 dB** (CER 0 % pour deux jeux ; −6 dB de l'essai 2 à 0,98 % : dispersion de mesure ≈ ±1 point à ≈ 215 caractères). Phase C visée : **−10 dB**.
+
+### Paramètres optimisés, zones de recherche, valeurs retenues (15 WPM)
+Zones de recherche identiques à celles de la synthèse (voir plus haut) : `seg` 800…6000 pas 100, `hop` 100…1000 pas 50 (≤ seg), `fciq` 0,8…12 Hz log, `fcpow` 0,8…14 Hz log, `fcpre` 1000…4000 Hz log,
+`startref` 60…200 pas 10, `dvar` 0…1, `owin` 5000…30 000 ms pas 1000, `omargin` −0,3…+0,3, `osmooth` 0…0,9 ; `tau`/`decay` et `marge` hors recherche (`norm 0`, `algo 1` : `decay` sans effet). Défaut enqueué en essai 0.
+Phase A : étude `coh15_otsu_norm0_snr-6` (−6 dB, 110 s + 20 s par essai, ≈ 48 caractères seulement pour les essais très mauvais, ≈ 145 sinon ; 22 essais, 15:20 → 16:10 ; amorçage : défaut seul).
+Phase C : étude `coh15_otsu_norm0_snr-10` (−10 dB, 56 essais, 17:20 → 19:27 ; amorçage : défaut + jeux A 2, 14, 20, 18, 21 sans `decay`). Les 2 jeux à 0 % de C : essais 47 et 53.
+
+| Paramètre | Zone de recherche | Défaut (essai 0) | Phase A (−6 dB) : essai 2 · essai 14 | Phase C (−10 dB) : **retenu = essai 47** · essai 53 |
+|---|---|---|---|---|
+| `seg` | 800 … 6000, pas 100 | 2500 | 4900 · 3800 | **3400** · 3200 |
+| `hop` | 100 … 1000, pas 50 | 500 | 700 · 600 | **650** · 700 |
+| `fciq` (Hz) | 0,8 … 12, log | 3 | 6,25 · 7,20 | **8,955** · 5,95 |
+| `fcpow` (Hz) | 0,8 … 14, log | 3 | 9,20 · 13,43 | **9,567** · 9,50 |
+| `fcpre` (Hz) | 1000 … 4000, log | 1800 | 1427 · 1534 | **2517** · 2137 |
+| `startref` | 60 … 200, pas 10 | 100 | 200 · 200 | **180** · 150 |
+| `dvar` | 0 … 1 | 1 | 1 · 1 | **1** · 1 |
+| `owin` (ms) | 5000 … 30 000, pas 1000 | 10 000 | 28 000 · 26 000 | **27 000** · 27 000 |
+| `omargin` | −0,3 … +0,3 | 0 | −0,077 · −0,017 | **−0,063** · +0,045 |
+| `osmooth` | 0 … 0,9 | 0 | 0,646 · 0,672 | **0,776** · 0,802 |
+| CER meilleur essai (recherche) | — | 75,6 % (−6 dB) / 80,5 % (−10 dB) | 0 % (6 essais sur 22 : 2, 12, 14, 18, 20, 21) | 0 % (2 essais sur 56 : 47, 53) |
+| Confirmation indépendante −10 dB (3 × 165 s) | — | — | essai 2 : 6,8 / 2,4 / 7,8 % (moy. 5,7 %) | **essai 47 : 1,46 / 2,44 / 0 % (moy. 1,30 %)** · essai 53 : 3,9 / 4,9 / 3,9 % (moy. 4,2 %) |
+
+Autres jeux confirmés à −10 dB (la ligne « essai 2 » de A ci-dessus est l’essai 1 de C, qui rejoue ce jeu) (`data/coh15/confirm_snr-10.{csv,json,out}`, 5 jeux × 3 × 165 s) : essai 27 de C : 4,9 / 1,0 / 0 % (moy. 1,95 %) ; essai 20 de C : 6,8 / 0,5 / 8,3 % (5,2 %).
+Tendance à 15 WPM : `seg` plus court (3200–4900 contre 4700 à 10 WPM, optimum 3400), `fcpre` plus haut (≈ 2500), `owin` à la limite haute (≈ 27 000 ms, borne 30 000), `startref` 150–200 ; `fciq` 6–9 Hz.
+Le 0 % de la recherche (≈ 145 caractères) ne se reproduit pas à l'identique : la confirmation donne **1,3 % moyen à −10 dB** pour le meilleur jeu, contre 1,1 % moyen à −12 dB à 10 WPM — le seuil effectif à 15 WPM est environ 2 dB plus haut (−10 dB au lieu de −12 dB).
+
+### Jeu retenu à −10 dB (15 WPM, Otsu, `norm 0`)
+`set norm 0;set algo 1;set seg 3400;set hop 650;set fciq 8.955;set fcpow 9.567;set fcpre 2517.4;set decay 0.999349;set startref 180;set dvar 1;set owin 27000;set omargin -0.063;set osmooth 0.776`
+(copie dans `data/coh15/pre_best15_m10.txt`). Non adopté comme défaut du firmware ; à appliquer par `set` après chaque flash.
+Fichiers : `data/coh/optuna_coh15_otsu_norm0_snr-{6,10}.{csv,db,log}`, `data/coh/coh15_optuna_snr-{6,10}.out`, `data/coh15/`. Scripts : `bench/coh_chain6.sh`, `bench/coh_pre_trial.py`, `bench/coh_confirm_multi.py --wpm 15`.
+Limites : un seul tirage de la graine, pas de test de dynamique ni de suivi de fréquence à 15 WPM avec ce jeu.
