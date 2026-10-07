@@ -363,3 +363,55 @@ Limites de la zone de recherche à 20 WPM : `fcpow`, `fciq`, `fcpre` et `owin` d
 `set norm 0;set algo 1;set seg 3000;set hop 300;set fciq 10.907;set fcpow 12.253;set fcpre 2654.5;set decay 0.999699;set startref 180;set dvar 1;set owin 26000;set omargin -0.028;set osmooth 0.277`
 (copie dans `data/coh20/pre_best20_m10.txt`). Pour une utilisation à −8 dB (0 %), le jeu 29 de A convient (`bench/coh_pre_trial.py data/coh/optuna_coh20_otsu_norm0_snr-6.csv 29`). Non adopté comme défaut du firmware.
 Fichiers : `data/coh/optuna_coh20_otsu_norm0_snr-{6,10}.{csv,db,log}`, `data/coh/coh20_optuna_*.out`, `data/coh20/`, `bench/coh_chain7.sh`.
+
+## 2026-10-07 04:50 — Comparatif 10 / 15 / 20 WPM, décodeur cohérent (jeux retenus de chaque vitesse, norm 0, Otsu)
+Courbes CER/SNR à niveau compensé (`bench/coh_chain8.sh`, `data/coh20/curve_coh_retained_{10,15,20}wpm.csv`, 165 s par point, mêmes SNR, `--nospace`, un seul tirage par point :
+dispersion ≈ ±1 point à CER faible, davantage à CER fort). Chaque vitesse est mesurée avec son propre jeu retenu (10 WPM : optimisé à −12 dB ; 15 WPM : à −10 dB ; 20 WPM : à −10 dB).
+
+### Résultats à faible SNR (CER %)
+| SNR | 10 WPM | 15 WPM | 20 WPM |
+|---|---|---|---|
+| −6 dB | 0 | 0 | 0 |
+| −8 dB | 0 | 0 | 0,7 |
+| −10 dB | 0 | 0,5 | 4,9 |
+| −12 dB | 1,6 | 10,7 | 29,3 |
+| −14 dB | 32,5 | 39,0 | 59,9 |
+| Caractères par point | ≈ 143 | ≈ 215 | ≈ 290 |
+| SNR du 1er CER > 1 % | −12 dB | −10/−12 dB | −8/−10 dB |
+
+Le seuil de décodage recule d'environ 2 dB à chaque cran de vitesse (10 → 15 → 20 WPM : limite à 0 % vers −10 → −8 → −6/−8 dB) : à puissance de bruit constante par Hz, le rapport signal/bruit dans la bande utile varie comme la bande nécessaire (∝ vitesse), soit +1,8 dB de 10 à 15 WPM et +1,2 dB de 15 à 20 WPM, plus la perte d'intégration due à des fenêtres plus courtes.
+
+### Comparatif des meilleurs paramètres (valeurs retenues)
+| Paramètre | Zone de recherche | 10 WPM (−12 dB) | 15 WPM (−10 dB) | 20 WPM (−10 dB) |
+|---|---|---|---|---|
+| `seg` (échantillons) | 800 … 6000 | 4700 (108,8 ms) | 3400 (78,7 ms) | 3000 (69,4 ms) |
+| `seg` / durée du point | — | 0,91 | 0,98 | 1,16 |
+| `hop` | 100 … 1000 | 650 (15,0 ms) | 650 (15,0 ms) | 300 (6,9 ms) |
+| `fciq` (Hz) | 0,8 … 12 | 5,75 | 8,955 | 10,907 |
+| `fcpow` (Hz) | 0,8 … 14 | 7,48 | 9,567 | 12,253 |
+| `fcpre` (Hz) | 1000 … 4000 | 1190 | 2517 | 2655 |
+| `startref` | 60 … 200 | 200 | 180 | 180 |
+| `dvar` | 0 … 1 | 1 | 1 | 1 |
+| `owin` (ms) | 5000 … 30 000 | 8000 | 27 000 | 26 000 |
+| `omargin` | −0,3 … +0,3 | −0,120 | −0,063 | −0,028 |
+| `osmooth` | 0 … 0,9 | 0,766 | 0,776 | 0,277 |
+| CER confirmé (3 × 165 s) | — | 1,1 % à −12 dB | 1,3 % à −10 dB | 8,1 % à −10 dB |
+
+Tendances : `fciq` et `fcpow` augmentent avec la vitesse (×1,9 et ×1,6 de 10 à 20 WPM ; la bande I/Q doit suivre le débit de manipulation, les bons essais à 20 WPM touchent presque la borne haute de la zone) ; `seg` diminue
+(4700 → 3000, mais moins vite que le point : 0,9 → 1,2 point) ; `hop` à 20 WPM passe à 300 (la modulation est plus rapide, il faut échantillonner plus finement) ; `fcpre` ≈ 2,5–2,7 kHz à 15 et 20 WPM ;
+`startref` ≈ 180–200 et `dvar` = 1 stables ; `omargin` se rapproche de 0 ; `owin` ≈ 26 000–27 000 ms à 15/20 WPM (borne haute 30 000 ms). Les jeux voisins sont indiscernables dans le bruit de mesure ; seules ces tendances sont robustes.
+
+## 2026-10-07 10:35 — Comparatif côte à côte cohérent vs K4ICY (V3.0 faithful 0, jeux retenus à 10 / 15 / 20 WPM)
+K4ICY : études Optuna `k4_otsu_{10,15,20}wpm_snr-10-12` (60 s, −10/−12 dB), courbes `data/k4wpm/curve_k4_retained_{10,15,20}wpm.csv` (165 s/point) ; détail des paramètres K4ICY dans `Morse_decode_V_3_0_K4ICY_Otsu/STATUS.md` (section du 2026-10-07 10:30).
+
+| CER % | 10 WPM cohérent | 10 WPM K4ICY | 15 WPM cohérent | 15 WPM K4ICY | 20 WPM cohérent | 20 WPM K4ICY |
+|---|---|---|---|---|---|---|
+| −6 dB | 0 | 0,8 | 0 | 1,0 | 0 | 4,5 |
+| −8 dB | 0 | 0,0 | 0 | 2,4 | 0,7 | 10,2 |
+| −10 dB | 0 | 12,2 | 0,5 | 9,8 | 4,9 | 26,8 |
+| −12 dB | 1,6 | 35,8 | 10,7 | 28,3 | 29,3 | 41,1 |
+| −14 dB | 32,5 | 62,8 | 39,0 | 47,3 | 59,9 | 62,2 |
+
+Le cohérent gagne ≈ 2–4 dB : 0 % jusqu'à −10 dB à 10 WPM (K4ICY : plafond à −8 dB), 0,5 % contre 9,8 % à −10 dB à 15 WPM, 4,9 % contre 26,8 % à 20 WPM. L'écart se referme à −14 dB (nul à 20 WPM).
+Le K4ICY n'a qu'un jeu de réglages quasi plat (Q = 45 constant, `navg` 6 → 4 → 3, signal bins 20–22) alors que le cohérent a des constantes de temps qui suivent la vitesse (`seg` 4700 → 3000, `fciq` 5,7 → 10,9 Hz, `fcpow` 7,5 → 12,3 Hz, `hop` 650 → 300) : plus performant, mais plus sensible à l'adaptation par vitesse.
+Les deux dégradent avec la vitesse (≈ −2 dB de seuil par cran pour le cohérent ; K4ICY : −8 dB à 10/15 WPM, < −6 dB à 20 WPM).
