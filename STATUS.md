@@ -310,3 +310,56 @@ Lecture : `hop` (≈ 15 ms), `dvar 1`, `startref` ≈ 180–200, `omargin` ≈ �
 (×1,56) suit la vitesse (×1,5). `fcpow` monte moins vite (×1,28). `fcpre` doublerait à 15 WPM mais la plage 1190–2517 Hz est plate à 10 WPM (jeux à 1272…2585 équivalents) : à ne pas sur-interpréter.
 `owin` n'est pas discriminant : à 10 WPM des jeux à 0 % existent de 8000 à 28 000 ms, et à 15 WPM tous les bons essais sont à 25 000–29 000 ms (borne haute 30 000, à élargir si on poursuit).
 Dispersion : la confirmation à −10/−12 dB classe les jeux à ≈ ±1–2 points ; ces écarts entre jeux voisins sont dans le bruit de mesure.
+
+## 2026-10-07 03:50 — 20 WPM : niveau à 0 % de CER, puis Optuna 2 dB plus bas (norm 0, Otsu ; firmware 1.7.2-bench)
+Même méthode qu'à 15 WPM (phases A, B, C), mode codeur `speed 1` (« 20 WPM » existant, point ≈ 60 ms ; `bench/rig.py set_speed_20wpm`, `--wpm 20` dans `coh_optuna.py`, `curve_levelcomp.py`, `coh_confirm_multi.py`). Gain codeur 0,0091, `--nospace`, 110 s + 20 s par essai (≈ 190 caractères par essai).
+
+### Phase A — Optuna exploratoire à −6 dB (`coh20_otsu_norm0_snr-6`, 22:41 → 23:57, 33 essais)
+Amorçage : défaut (essai 0, 75,6 %), jeu retenu 15 WPM (essai 47 de C), jeu 27 de C (15 WPM), jeux A14 et A21 de 15 WPM, jeu mis à l'échelle (seg 2500, hop 500, fciq 11, fcpow 11, fcpre 2600). **6 essais à 0 %** : 3, 5, 12, 21, 25, 29 (dont 12, 25, 29 trouvés par TPE).
+
+### Phase B — courbes CER/SNR à 20 WPM (165 s par point, `bench/coh_chain7.sh`, `data/coh20/curve_coh20_t{12,25,29}.csv`)
+| Jeu (essai de A) | 0 dB | −6 dB | −8 dB | −10 dB | −12 dB |
+|---|---|---|---|---|---|
+| essai 12 | 0 % | 0 % | 0,35 % | 4,9 % | 30,3 % |
+| essai 25 | — | — | 1,0 % | 12,2 % | 33,1 % |
+| essai 29 | — | — | **0 %** | 9,4 % | 37,0 % |
+
+**X = −8 dB** (CER 0 % pour l'essai 29, 0,35 % pour l'essai 12 ; ≈ 288 caractères par point). Phase C : **−10 dB**.
+
+### Phase C — Optuna à −10 dB (`coh20_otsu_norm0_snr-10`, 00:41 → 02:47, 56 essais)
+Amorçage : défaut + jeux 12, 29, 25, 21, 3, 5 de A (sans `decay`). **Aucun essai à 0 %** : meilleur #1 (= jeu 12 de A) 3,05 % ; suivants #22 4,9 %, #23/#44/#48 5,5 %. Confirmation : 5 jeux × 3 × 165 s à −10 dB (`--cermax 0,07`, `data/coh20/confirm_snr-10.{csv,json,out}`).
+
+| Essai de C | CER en 3 mesures | Moyenne |
+|---|---|---|
+| **#23** | 8,0 / 9,1 / 7,3 % | **8,1 %** |
+| #1 | 9,4 / 10,6 / 8,4 % | 9,5 % |
+| #22 | 8,0 / 10,8 / 10,8 % | 9,9 % |
+| #48 | 15,0 / 8,7 / 8,9 % | 10,9 % |
+| #44 | 18,7 / 10,1 / 7,0 % | 11,9 % |
+
+Les essais de recherche (3–5 %) sont nettement meilleurs que leur confirmation (≈ 8–12 %) : sur-ajustement au bruit de mesure ; à −10 dB et 20 WPM le niveau réel est ≈ 8 % contre 1,3 % à 15 WPM.
+
+### Paramètres optimisés, zones de recherche, valeurs retenues (20 WPM)
+Zones de recherche inchangées (voir synthèse 10 WPM) ; `tau`/`decay` et `marge` hors recherche (`norm 0`, `algo 1`).
+
+| Paramètre | Zone de recherche | Défaut | A (−6 dB) : essai 12 · essai 29 · essai 25 | C (−10 dB) : **retenu #23** · #1 · #22 |
+|---|---|---|---|---|
+| `seg` | 800 … 6000, pas 100 | 2500 | 2200 · 2300 · 2000 | **3000** · 2200 · 1700 |
+| `hop` | 100 … 1000, pas 50 | 500 | 250 · 200 · 300 | **300** · 250 · 250 |
+| `fciq` (Hz) | 0,8 … 12, log | 3 | 7,96 · 10,94 · 7,31 | **10,907** · 7,96 · 11,58 |
+| `fcpow` (Hz) | 0,8 … 14, log | 3 | 12,22 · 12,74 · 10,40 | **12,253** · 12,22 · 10,79 |
+| `fcpre` (Hz) | 1000 … 4000, log | 1800 | 3556 · 2233 · 3753 | **2655** · 3556 · 3832 |
+| `startref` | 60 … 200, pas 10 | 100 | 180 · 170 · 190 | **180** · 180 · 200 |
+| `dvar` | 0 … 1 | 1 | 1 · 1 · 1 | **1** · 1 · 1 |
+| `owin` (ms) | 5000 … 30 000, pas 1000 | 10 000 | 30 000 · 28 000 · 24 000 | **26 000** · 30 000 · 21 000 |
+| `omargin` | −0,3 … +0,3 | 0 | −0,027 · −0,094 · −0,028 | **−0,028** · −0,027 · −0,006 |
+| `osmooth` | 0 … 0,9 | 0 | 0,750 · 0,667 · 0,471 | **0,277** · 0,750 · 0,548 |
+| CER (recherche) | — | 75,6 % (−6 dB) | 0 % (6 essais sur 33) | aucun 0 % ; meilleur 3,05 % (#1) |
+| Confirmation −10 dB (3 × 165 s) | — | — | — | **#23 : 8,1 %** · #1 : 9,5 % · #22 : 9,9 % |
+
+Limites de la zone de recherche à 20 WPM : `fcpow`, `fciq`, `fcpre` et `owin` des bons essais se rapprochent des bornes hautes (12,3 et 11,6 Hz contre 14 et 12 ; 3,8 kHz contre 4 ; `owin` jusqu'à 30 000 ms) ; élargir ces zones si la campagne se poursuit.
+
+### Jeu retenu à −10 dB (20 WPM, Otsu, `norm 0`)
+`set norm 0;set algo 1;set seg 3000;set hop 300;set fciq 10.907;set fcpow 12.253;set fcpre 2654.5;set decay 0.999699;set startref 180;set dvar 1;set owin 26000;set omargin -0.028;set osmooth 0.277`
+(copie dans `data/coh20/pre_best20_m10.txt`). Pour une utilisation à −8 dB (0 %), le jeu 29 de A convient (`bench/coh_pre_trial.py data/coh/optuna_coh20_otsu_norm0_snr-6.csv 29`). Non adopté comme défaut du firmware.
+Fichiers : `data/coh/optuna_coh20_otsu_norm0_snr-{6,10}.{csv,db,log}`, `data/coh/coh20_optuna_*.out`, `data/coh20/`, `bench/coh_chain7.sh`.

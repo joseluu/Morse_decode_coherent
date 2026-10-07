@@ -58,3 +58,7 @@ Note : firmware 1.7.2-bench = 1.7.1 + commande `set norm 0|1` (par défaut 1 : c
 | 6.3 | Courbes CER/SNR des meilleurs jeux de 6.2 | X = SNR le plus bas à 0 % | fait : X = −8 dB |
 | 6.4 | Optuna à X − 2 = −10 dB (étude `coh15_otsu_norm0_snr-10`) + confirmation 5 × 3 × 165 s | 0 % reproduit | fait : 56 essais ; meilleur (essai 47) 1,3 % moyen confirmé, 0 % non reproduit à l'identique (voir STATUS 20:30) |
 | 6.5 | Suite éventuelle : dynamique et suivi de fréquence à 15 WPM avec le jeu retenu ; plus de répétitions | — | non fait (non demandé) |
+
+| 6.6 | Campagne 20 WPM (2026-10-06 22:41) : mêmes phases A (−6 dB) / B (courbes) / C (X − 2 dB) + confirmation | — | en cours (voir STATUS) |
+| 6.7 | Demande : comparatif 10/15/20 WPM à faible SNR (courbes des jeux retenus) cohérent + K4ICY, et comparatif des meilleurs paramètres | — | prévu après 6.6 (le K4ICY est optimisé à 10 et 20 WPM, voir PLAN du V3.0) |
+| 6.6' | Campagne 20 WPM terminée (2026-10-07 03:50) : X = −8 dB (0 % jeu 29) ; Optuna −10 dB sans 0 % ; retenu #23, 8,1 % confirmé | — | fait (voir STATUS 03:50) |
