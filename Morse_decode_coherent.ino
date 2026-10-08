@@ -35,7 +35,7 @@
                        // signal/tuning indicator
 #define Debug false                                 // v1.7 : texte de debug coupe (liaison serie pilotee par le banc)
 
-unsigned long Start_reference = 100;            // choose value midway between dot and dash at target speed
+unsigned long Start_reference = 190;            // choose value midway between dot and dash at target speed
 unsigned long Reference = Start_reference;
 unsigned long Leading_edge;                     // used to calculate tone duration
 unsigned long Trailing_edge;                    // used to calculate tone duration
@@ -52,7 +52,7 @@ bool Started = false;                           // decoder logic
 bool Measuring = false;
 bool Tone = false;
 MlMorse ml;                       // ML : Viterbi sur le flux marque/espace issu de Tone
-bool mlOn = false;                // set ml 1 : ML remplace le classique
+bool mlOn = true;                 // set ml 1 : ML remplace le classique
 bool mlDual = false;              // set ml 2 : classique (majuscules) + ML (minuscules) dans le log, comparaison appariee
 bool mlRec = false;               // set mlrec 1 : trace '~<ms> <0|1>' a chaque transition de Tone (rejeu hors ligne de ML)
 
@@ -110,16 +110,16 @@ int cmdIndex = 0;
 
 //----------------------------- v1.7 : banc de mesure (log, Otsu, parametres)
 bool logOn = false;                 // "log on" : caracteres decodes envoyes sur Serial
-int  decAlgo = 0;                   // 0 = seuil Marge, 1 = seuil d'Otsu (repli sur Marge avant le premier seuil)
-bool normOn = true;                 // normalisation par maximum glissant du demodulateur (set norm 0|1)
+int  decAlgo = 1;                   // 0 = seuil Marge, 1 = seuil d'Otsu (repli sur Marge avant le premier seuil)
+bool normOn = false;                // normalisation par maximum glissant du demodulateur (set norm 0|1)
 int  decVar = 1;                    // variable decisionnelle d'Otsu : 0 = puissance normalisee, 1 = sa racine
 CWOtsu otsu;
-float oMargin = 0.0f;                // seuil effectif = seuil Otsu * (1 + oMargin)
-float oSmooth = 0.0f;                // lissage du seuil d'une fenetre a l'autre : thr = oSmooth*thr_prec + (1-oSmooth)*thr_Otsu
+float oMargin = -0.148f;               // seuil effectif = seuil Otsu * (1 + oMargin)
+float oSmooth = 0.810f;               // lissage du seuil d'une fenetre a l'autre : thr = oSmooth*thr_prec + (1-oSmooth)*thr_Otsu
 float thrEff = 0.0f;
 uint32_t otsuSeen = 0;
-int  segLen = 2500, hopLen = 500;
-float fcIq = 3.0f, fcPow = 3.0f, fcPre = 1800.0f, decayMax = 0.9995f;
+int  segLen = 5000, hopLen = 450;
+float fcIq = 8.119f, fcPow = 7.033f, fcPre = 1484.9f, decayMax = 0.999549f;   // jeu 10 WPM + ML a -13 dB (essai 59)
 
 //-----------------------------utilisé par le décodeur
 float Diff = 0.2 ;
@@ -228,7 +228,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.7.2-bench 2026-10-05 23:45"
+#define VERSION "1.8.0-bench 2026-10-08 ML 10WPM"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -360,7 +360,10 @@ void setup() {
  //-------------------------------------------------------------- pour le décodage
   Started = false;
   Measuring = false;
-  applyOtsuRange();
+  ml.sigma0 = 22.0f; ml.penGlitch = 7.0f;                 // ML optimises a -13 dB / 10 WPM (voir STATUS.md)
+  otsu.windowMs = 11000;
+  CW_In.set_norm(normOn);
+  applyDemod();
   otsu.reset();
 }
 
