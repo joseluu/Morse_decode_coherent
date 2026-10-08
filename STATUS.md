@@ -415,3 +415,19 @@ K4ICY : études Optuna `k4_otsu_{10,15,20}wpm_snr-10-12` (60 s, −10/−12 dB),
 Le cohérent gagne ≈ 2–4 dB : 0 % jusqu'à −10 dB à 10 WPM (K4ICY : plafond à −8 dB), 0,5 % contre 9,8 % à −10 dB à 15 WPM, 4,9 % contre 26,8 % à 20 WPM. L'écart se referme à −14 dB (nul à 20 WPM).
 Le K4ICY n'a qu'un jeu de réglages quasi plat (Q = 45 constant, `navg` 6 → 4 → 3, signal bins 20–22) alors que le cohérent a des constantes de temps qui suivent la vitesse (`seg` 4700 → 3000, `fciq` 5,7 → 10,9 Hz, `fcpow` 7,5 → 12,3 Hz, `hop` 650 → 300) : plus performant, mais plus sensible à l'adaptation par vitesse.
 Les deux dégradent avec la vitesse (≈ −2 dB de seuil par cran pour le cohérent ; K4ICY : −8 dB à 10/15 WPM, < −6 dB à 20 WPM).
+
+## 2026-10-08 — Variante ML (vraisemblance maximale après la décision Otsu) : intégrée et comparée (NON committé)
+- Algorithme : `ml_morse.h` (copie de `ml/ml_morse.h`, sans dépendance Arduino). Viterbi sur l'arbre Morse appliqué au flux marque/espace issu de la décision Otsu : durées gaussiennes autour de k·T ± δ (point/trait 1T/3T ; espaces 1T/3T/≥7T), T et biais δ suivis par NLMS (recherche en grille à l'accrochage), fusion de 3 événements pour absorber un parasite (pénalité `mlglitch` = 8 nats), a priori de lettres, décodage à retard fixe (6 événements), purge après un long silence. Réglages par défaut : `mlsigma` 30 ms, `mlglitch` 8 (choisis sur un test PC synthétique `ml/ml_host.cpp`, pas sur le banc).
+- Commandes série : `set ml 0|1|2` (0 = classique seul, 1 = ML remplace le classique, 2 = duel : classique en MAJUSCULES et ML en minuscules dans le log, pour une comparaison appariée sur le même signal), `set mlsigma <ms>`, `set mlglitch <nats>` ; `status` affiche `ml=`, T, δ, nombre de caractères/glitchs. Défaut : `ml 0`.
+- Comparatif apparié (`bench/ml_ab_curve.py` via `bench/ml_chain1.sh`, log `data/ml/campaign_ml_chain1.log`, CSV `data/ml/ab_*.csv`) : 10/15/20 WPM, SNR −6…−14 dB, niveau compensé (crête 0,09), `--nospace`, 150 s/point (+30 s de stabilisation), 2 blocs ; les deux CER viennent du même signal.
+
+| CER % classique / ML | −6 dB | −8 dB | −10 dB | −12 dB | −14 dB |
+|---|---|---|---|---|---|
+| 10 WPM | 0 / 0 | 0 / 0 | 0 / 0 | 4,1 / 0,8 | 26,0 / 14,6 |
+| 15 WPM | 0 / 0 | 0 / 0 | 1,5 / 1,5 | 18,3 / 8,8 | 45,9 / 35,1 |
+| 20 WPM | 0 / 0 | 0,6 / 0,6 | 6,9 / 4,3 | 28,9 / 26,4 | 55,4 / 50,6 |
+
+- Jeux de paramètres du cohérent : ceux de chaque vitesse (`data/coh/freq_pre_best12.txt`, `data/coh15/pre_best15_m10.txt`, `data/coh20/pre_best20_m10.txt`), vérifiés dans le log. Ils ont été optimisés pour le décodeur classique.
+- Lecture : ML ne dégrade jamais ; il repousse le seuil de ≈ 1–2 dB à 10 et 15 WPM (−12 dB : 4,1 → 0,8 % à 10 WPM, 18,3 → 8,8 % à 15 WPM), gain faible à 20 WPM. Il ne rattrape pas les caractères perdus dans le bruit (−14 dB reste à 35–51 %).
+- Limites : 2 blocs seulement ; des écarts de 1–2 points sont dans le bruit. Les réglages de ML (`mlsigma`, `mlglitch`) n'ont PAS été optimisés sur le banc. L'affichage TFT en mode `ml 1` n'est pas vérifié visuellement (seul le mode duel, sur le log série, a été mesuré).
+- État laissé : décodeur flashé avec K4ICY V3.x + ML (ml 0 au démarrage), mais `faithful -20` encore appliqué en direct (défaut du firmware : −10) ; codeur à 20 WPM, gain 0,05.

@@ -29,6 +29,7 @@
 #include "AudioMixer11_F32.h"
 #include "AudioSignalGenerator_F32.h"
 #include "cw_otsu.h"
+#include "ml_morse.h"         // decodeur Vraisemblance Maximum (variante ML), apres la decision Otsu
 
 
                        // signal/tuning indicator
@@ -50,6 +51,9 @@ short WPM;
 bool Started = false;                           // decoder logic
 bool Measuring = false;
 bool Tone = false;
+MlMorse ml;                       // ML : Viterbi sur le flux marque/espace issu de Tone
+bool mlOn = false;                // set ml 1 : ML remplace le classique
+bool mlDual = false;              // set ml 2 : classique (majuscules) + ML (minuscules) dans le log, comparaison appariee
 
 //------------------------------- utilisé par l'affichage
 #define SCREEN_WIDTH 320
@@ -486,7 +490,7 @@ void cmdHelp() {
   Serial.println("  set marge <value>     - set detection threshold");
   Serial.println("  scope                 - output next sweep as CSV");
   Serial.println("  reset | log on|off | peak [reset]   (bench v1.7)");
-  Serial.println("  set algo|norm|track|trackk|dvar|omargin|osmooth|owin|ofirst|startref|seg|hop|fciq|fcpow|fcpre|decay <v>");
+  Serial.println("  set algo|norm|track|trackk|dvar|omargin|osmooth|owin|ofirst|startref|seg|hop|fciq|fcpow|fcpre|decay|ml|mlsigma|mlglitch <v>   (ml 0|1|2 = decodeur vraisemblance maximale ; 2 = duel : classique MAJ + ML min dans le log)");
   Serial.print("Sources:");
   for (int i = 0; i < NUM_SOURCES; i++) {
     Serial.print(' ');
@@ -517,6 +521,7 @@ void cmdStatus() {
   Serial.println(Marge, 3);
   Serial.print("Decoder: Morse_decode_coherent ");
   Serial.println(VERSION);
+  Serial.printf("ml=%d T=%.1f delta=%+.1f locked=%d chars=%lu glitches=%lu sigma=%.0f pen=%.1f\n", mlDual ? 2 : (mlOn ? 1 : 0), ml.unitMs, ml.delta, ml.locked ? 1 : 0, (unsigned long)ml.nChars, (unsigned long)ml.nGlitch, ml.sigma0, ml.penGlitch);
   Serial.printf("algo=%d (0=marge 1=otsu) dvar=%d norm=%d log=%d track=%d fcorr=%+.3f\n", decAlgo, decVar, normOn ? 1 : 0, logOn ? 1 : 0, CW_In.get_track() ? 1 : 0, CW_In.f_corr());
   Serial.printf("foff: %+.3f %.6f %lu\n", CW_In.foff_hz(), CW_In.foff_conf(), (unsigned long)CW_In.foff_updates());
   Serial.printf("seg=%d hop=%d fciq=%.3f fcpow=%.3f fcpre=%.1f decay=%.5f startref=%lu\n",
@@ -547,6 +552,7 @@ void resetDecoder() {
   Index = 63; Offset = 32; Count = 6;
   Started = false; Measuring = false; Tone = false;
   Trailing_edge = millis();
+  ml.reset();
 }
 
 void executeCommand(char* cmd) {
@@ -662,6 +668,12 @@ void executeCommand(char* cmd) {
       otsu.windowMs = (uint32_t)atol(arg + 5); Serial.printf("owin = %lu\n", (unsigned long)otsu.windowMs);
     } else if (strncmp(arg, "ofirst ", 7) == 0) {
       otsu.firstWindowMs = (uint32_t)atol(arg + 7); Serial.printf("ofirst = %lu\n", (unsigned long)otsu.firstWindowMs);
+    } else if (strncmp(arg, "ml ", 3) == 0) {
+      { int mv = atoi(arg + 3); mlOn = (mv == 1); mlDual = (mv == 2); } ml.reset(); Serial.printf("ml = %d\n", mlDual ? 2 : (mlOn ? 1 : 0));
+    } else if (strncmp(arg, "mlsigma ", 8) == 0) {
+      ml.sigma0 = atof(arg + 8); Serial.printf("mlsigma = %.1f\n", ml.sigma0);
+    } else if (strncmp(arg, "mlglitch ", 9) == 0) {
+      ml.penGlitch = atof(arg + 9); Serial.printf("mlglitch = %.1f\n", ml.penGlitch);
     } else if (strncmp(arg, "startref ", 9) == 0) {
       Start_reference = (unsigned long)atol(arg + 9); Serial.printf("startref = %lu\n", Start_reference);
     } else if (strncmp(arg, "seg ", 4) == 0) {
@@ -708,8 +720,20 @@ void processSerialInput() {
 // ----------------------------
 // loop()
 // ----------------------------
+void mlStep() {                                           // alimente ML avec Tone ; si mlOn, ses caracteres remplacent ceux du decodeur classique
+  ml.update(Tone, millis());
+  int c;
+  while ((c = ml.read()) >= 0) {
+    if (mlDual) { if (logOn) Serial.print((char)tolower(c)); continue; }
+    if (!mlOn) continue;
+    if (logOn) Serial.print((char)c);
+    sendToTFT1((char)c);
+  }
+}
+
 void loop() {
   sample();                                                  // ----- check for tone
+  mlStep();
 
   if (encoder.valueChanged()) {
     Pos_enc = encoder.getValue();
@@ -871,7 +895,7 @@ void sendToTFT1(char character)
   tft.setFont(Arial_14);
   tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
   tft.setCursor(posH, posV);
-  tft.print(Symbol[Index]);
+  tft.print(character);
 }
 
 // -------------------------------------------------- sample()  Décodage d'un élément de caractère
@@ -946,7 +970,7 @@ void decode() {
    
 
     if ((millis() - Trailing_edge) > Reference * 3) {           // detect word end
-      if (logOn) {
+      if (logOn && !mlOn) {
       Serial.print(' ');
       }                                      // if so insert a space
       //sendToTFT1(' ');
@@ -1046,10 +1070,10 @@ void decode() {
       }
 
       // ----- print letter
-      if (logOn) {
+      if (logOn && !mlOn) {
         Serial.print(Symbol[Index]);
       }
-      if(Symbol[Index] > 0x20)                       // print letter to Serial Monitor
+      if(Symbol[Index] > 0x20 && !mlOn)                       // print letter to Serial Monitor
       {
         sendToTFT1(Symbol[Index]); 
       }

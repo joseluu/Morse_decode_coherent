@@ -63,3 +63,5 @@ Note : firmware 1.7.2-bench = 1.7.1 + commande `set norm 0|1` (par défaut 1 : c
 | 6.7 | Demande : comparatif 10/15/20 WPM à faible SNR (courbes des jeux retenus) cohérent + K4ICY, et comparatif des meilleurs paramètres | — | prévu après 6.6 (le K4ICY est optimisé à 10 et 20 WPM, voir PLAN du V3.0) |
 | 6.6' | Campagne 20 WPM terminée (2026-10-07 03:50) : X = −8 dB (0 % jeu 29) ; Optuna −10 dB sans 0 % ; retenu #23, 8,1 % confirmé | — | fait (voir STATUS 03:50) |
 | 6.7' | Comparatifs 10/15/20 WPM faits (2026-10-07 10:35) : K4ICY optimisé à 10/20 WPM (retenus #29 et #24) ; tableaux côte à côte cohérent vs K4ICY dans les deux STATUS.md | — | fait |
+
+| 7 | Variante ML (vraisemblance maximale après Otsu) ajoutée aux 3 décodeurs et comparée en mode apparié `set ml 2` (2026-10-08, demande utilisateur) | — | fait (voir STATUS 2026-10-08) ; reste : optimiser `mlsigma`/`mlglitch` sur le banc, commit sous-module |
