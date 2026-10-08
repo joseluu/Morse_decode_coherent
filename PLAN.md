@@ -65,3 +65,8 @@ Note : firmware 1.7.2-bench = 1.7.1 + commande `set norm 0|1` (par défaut 1 : c
 | 6.7' | Comparatifs 10/15/20 WPM faits (2026-10-07 10:35) : K4ICY optimisé à 10/20 WPM (retenus #29 et #24) ; tableaux côte à côte cohérent vs K4ICY dans les deux STATUS.md | — | fait |
 
 | 7 | Variante ML (vraisemblance maximale après Otsu) ajoutée aux 3 décodeurs et comparée en mode apparié `set ml 2` (2026-10-08, demande utilisateur) | — | fait (voir STATUS 2026-10-08) ; reste : optimiser `mlsigma`/`mlglitch` sur le banc, commit sous-module |
+
+## Phase 7 — ML : réglage banc à −13 dB / 10 WPM (2026-10-08)
+1. mlsigma / mlglitch optimisés hors ligne sur enregistrements réels (`mlrec`) → 22 ms / 7 nats (voir STATUS.md).
+2. Optuna des paramètres cohérent à −13 dB avec ML fixé à 22/7 (étude `coh_ml_13_10wpm`) ; puis confirmation du meilleur jeu (plusieurs blocs) vs jeu 10 WPM actuel.
+- Fait (2026-10-08 18:00) : phase 7 terminée, jeu retenu = essai 59 (voir STATUS.md). Suite possible : courbe CER vs SNR avec ce jeu (classique vs ML), puis refaire l'exercice à 15/20 WPM.

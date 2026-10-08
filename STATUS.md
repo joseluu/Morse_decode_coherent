@@ -431,3 +431,36 @@ Les deux dégradent avec la vitesse (≈ −2 dB de seuil par cran pour le cohé
 - Lecture : ML ne dégrade jamais ; il repousse le seuil de ≈ 1–2 dB à 10 et 15 WPM (−12 dB : 4,1 → 0,8 % à 10 WPM, 18,3 → 8,8 % à 15 WPM), gain faible à 20 WPM. Il ne rattrape pas les caractères perdus dans le bruit (−14 dB reste à 35–51 %).
 - Limites : 2 blocs seulement ; des écarts de 1–2 points sont dans le bruit. Les réglages de ML (`mlsigma`, `mlglitch`) n'ont PAS été optimisés sur le banc. L'affichage TFT en mode `ml 1` n'est pas vérifié visuellement (seul le mode duel, sur le log série, a été mesuré).
 - État laissé : décodeur flashé avec K4ICY V3.x + ML (ml 0 au démarrage), mais `faithful -20` encore appliqué en direct (défaut du firmware : −10) ; codeur à 20 WPM, gain 0,05.
+
+## 2026-10-08 10:05 — Optimisation de mlsigma / mlglitch à −13 dB (10 WPM), puis des paramètres cohérent avec ML (EN COURS, NON committé)
+
+**Méthode (étape 1)** : firmware coherent + `set mlrec 1` (trace `~<ms> <0|1>` à chaque transition de `Tone`). 6 enregistrements de 150 s
+à −13 dB, 10 WPM, jeu retenu 10 WPM (`data/coh/freq_pre_best12.txt`), gain compensé 0,0098 (`bench/ml_record.py` → `data/ml/rec/s13_10_*.json`).
+Rejeu hors ligne dans le MÊME `ml_morse.h` (`ml/ml_replay.cpp`, `bench/ml_replay.py`) : grilles `data/ml/opt_s13_10.csv` (grossière) et
+`opt_s13_10_fine.csv`. CER sans espaces, moyenne des 6 enregistrements (≈ 125 caractères chacun).
+
+| Décodeur | CER −13 dB |
+|---|---|
+| classique (Otsu) | 13,5 % (9,8 à 19,5 % selon l'enregistrement) |
+| ML défauts σ 30 / pénalité 8 | 4,5 % |
+| ML meilleur point (20 / 8) | 3,1 % |
+| ML centre de vallée (22 / 7) | 3,4 % |
+
+Vallée large et diagonale (σ↑ ⇒ pénalité↓) ; pénalité 0 catastrophique (49–76 %). Écarts dans la vallée ≈ bruit de mesure.
+**Retenu : `mlsigma 22`, `mlglitch 7`** (défauts du firmware inchangés : 30 / 8 ; à appliquer par `set` ou à changer dans `ml_morse.h`).
+
+**Étape 2 (en cours)** : `bench/coh_optuna.py --ml 22,7 --skip-default` (mode duel, objectif = CER du flux ML, CER classique tracé dans `note`),
+étude `coh_ml_13_10wpm` (`data/coh/optuna_coh_ml_13_10wpm.{db,csv,log,out}`), −13 dB, 150 s/essai + 20 s de settle, norm 0, algo 1,
+premier essai = jeu 10 WPM actuel, arrêt 14:30. Firmware : `Morse_decode_coherent.ino` + `mlrec` (modif non committée dans le sous-module).
+
+### 2026-10-08 18:00 — Résultat : Optuna cohérent + ML à −13 dB (10 WPM) TERMINÉ
+Optuna `coh_ml_13_10wpm` : 91 essais (10:04–14:32), ML fixé à σ 22 / pénalité 7, objectif = CER du flux ML. Un essai (130 car.) est trop bruité
+(±1 car. = 0,8 %) : 4 essais à 0,0 % ne sont que de la chance. Région convergée : seg 5000–5900, hop 450–600, fciq 5,5–8, fcpow 7–9,
+fcpre 1250–1500, startref 190–200, owin 7000–11000, omargin −0,12…−0,15, osmooth 0,82–0,89.
+Confirmation (`bench/coh_confirm_ml.py`, 8 jeux × 3 rép. × 165 s, `data/coh/confirm_ml_13_10wpm.{csv,json,log}`), CER ML moyen / max :
+59 : 1,9 / 4,1 % ; 78 : 2,4 / 5,7 ; 39 : 2,4 / 3,2 ; 87 : 2,4 / 3,2 ; 81 : 3,3 / 7,3 ; 69 : 4,6 / 8,9 ; 47 : 4,6 / 8,1 ; **0 (jeu 10 WPM d'avant) : 6,2 / 11,4**.
+Classique sur les mêmes signaux : 10–23 %. Les 4 premiers sont ex æquo (±1,5 pt).
+**Retenu : essai 59** (`data/coh/freq_pre_ml13_10wpm.txt`, inclut `mlsigma 22;mlglitch 7`) ; essai 39 équivalent et plus régulier.
+Réserve : optimisé et confirmé à −13 dB / 10 WPM seulement ; non revalidé à d'autres SNR (la courbe CER vs SNR avec ce jeu reste à faire),
+ni à 15/20 WPM. Les défauts du firmware restent inchangés (30/8, ancien jeu) : appliquer le jeu par `set`.
+Non committé : `Morse_decode_coherent.ino` (`mlrec`), `bench/ml_record.py`, `ml_replay.py`, `coh_confirm_ml.py`, `coh_optuna.py` (--ml), `ml/ml_replay.cpp`, `data/ml/`, `data/coh/`.

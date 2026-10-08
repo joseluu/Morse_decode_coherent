@@ -54,6 +54,7 @@ bool Tone = false;
 MlMorse ml;                       // ML : Viterbi sur le flux marque/espace issu de Tone
 bool mlOn = false;                // set ml 1 : ML remplace le classique
 bool mlDual = false;              // set ml 2 : classique (majuscules) + ML (minuscules) dans le log, comparaison appariee
+bool mlRec = false;               // set mlrec 1 : trace '~<ms> <0|1>' a chaque transition de Tone (rejeu hors ligne de ML)
 
 //------------------------------- utilisé par l'affichage
 #define SCREEN_WIDTH 320
@@ -670,6 +671,8 @@ void executeCommand(char* cmd) {
       otsu.firstWindowMs = (uint32_t)atol(arg + 7); Serial.printf("ofirst = %lu\n", (unsigned long)otsu.firstWindowMs);
     } else if (strncmp(arg, "ml ", 3) == 0) {
       { int mv = atoi(arg + 3); mlOn = (mv == 1); mlDual = (mv == 2); } ml.reset(); Serial.printf("ml = %d\n", mlDual ? 2 : (mlOn ? 1 : 0));
+    } else if (strncmp(arg, "mlrec ", 6) == 0) {
+      mlRec = (atoi(arg + 6) != 0); Serial.printf("mlrec = %d\n", mlRec ? 1 : 0);
     } else if (strncmp(arg, "mlsigma ", 8) == 0) {
       ml.sigma0 = atof(arg + 8); Serial.printf("mlsigma = %.1f\n", ml.sigma0);
     } else if (strncmp(arg, "mlglitch ", 9) == 0) {
@@ -721,6 +724,9 @@ void processSerialInput() {
 // loop()
 // ----------------------------
 void mlStep() {                                           // alimente ML avec Tone ; si mlOn, ses caracteres remplacent ceux du decodeur classique
+  static bool lastTone = false;
+  if (mlRec && Tone != lastTone) Serial.printf("~%lu %d\n", (unsigned long)millis(), Tone ? 1 : 0);
+  lastTone = Tone;
   ml.update(Tone, millis());
   int c;
   while ((c = ml.read()) >= 0) {
