@@ -49,9 +49,10 @@ All-F32 audio path using OpenAudio_ArduinoLibrary:
 ### Oscilloscope Display
 
 Between the menu and the version line, a 4-trace oscilloscope view shows signal levels vs time:
-- **Pin 14 sync** (green) and **Pin 15 tone** (cyan): superposed digital traces sharing the same vertical band. A rising edge on pin 14 triggers the sweep.
-- **Detection** (magenta): binary trace from `get_last_detection()`.
-- **Power** (yellow): analog trace (0.0–1.0) from `get_last_power()`.
+- **Pin 14 sync** (green) and **Pin 15 tone** (cyan): superposed digital traces sharing the same vertical band. Only used to synchronise a serial capture.
+- **Decision** (magenta): binary tone decision actually taken by the decoder (Otsu threshold, or Marge with `algo 0`).
+- **Threshold** (red, over the yellow trace): effective decision threshold on the same scale.
+- **Power** (yellow): decoder input before the decision (sqrt of the power with `dvar 1`), auto-scaled by a running maximum (~20 s). The sweep is free-running.
 - Sweep rate: 10ms/pixel, 300 pixels wide = 3.0 seconds.
 - A 5th menu row controls the scope: pressing the button outputs one sweep of tab-separated serial data (`Time Sync Tone Detect Power`).
 

@@ -497,3 +497,14 @@ Aucun des trois n'est réoptimisé avec ML à 15/20 WPM.
 - Correctif d'affichage seulement (`scopeLevel()` dans `Morse_decode_coherent.ino`) : la trace montre la grandeur vue par Otsu avant décision (√puissance si `dvar 1`), normalisée par un maximum glissant (~20 s, 0,9995 par échantillon). Sortie CSV série du scope inchangée (valeur brute). Aucun effet sur le décodage.
 - Compilé et flashé sur le décodeur du banc le 2026-10-09 ; identités des deux cartes vérifiées. Vérification visuelle par l'utilisateur en attente.
 - Même jour : le scope balaie maintenant en continu (relance automatique en fin de balayage, `updateOscilloscope()`). Le front montant de la broche 14 ne sert plus qu'à synchroniser une capture série demandée (`scope`). Flashé sur le banc, vérification visuelle en attente.
+- Même jour : le seuil effectif de décision (`thrEff × (1 + omargin)`, ou `Marge` en algo 0) est superposé en rouge à la trace jaune du bas, à la même échelle (absent tant qu'Otsu n'a pas de seuil). Note : en mode Otsu, le réglage Marge de l'écran n'intervient pas dans la décision, et la trace magenta (détection interne du démodulateur, seuil 0,22) n'en reflète pas la décision. Flashé, vérification visuelle en attente.
+- Même jour : trace magenta = décision de ton réellement prise (`scopeDecision`, Otsu ou Marge) au lieu de `get_last_detection()` (seuil interne 0,22, non pertinent). Ligne 4 du menu : affiche « Otsu » au lieu de la valeur de Marge quand `algo 1` (la valeur reste éditable, mais n'agit qu'en `algo 0`). README mis à jour. Flashé.
+
+### Lecture de l'écran du scope (balayage continu de 3 s, 300 pixels)
+
+De haut en bas :
+- **Trace verte (broche 14, « sync »)** : entrée numérique 14, câblée sur `SYNC_PIN` du codeur (broche 6), qui monte au démarrage du message. En balayage continu elle ne sert plus qu'à synchroniser une capture série (`scope`). Câblage non revérifié sur le banc.
+- **Trace cyan (broche 15, « tone »)** : entrée numérique 15, câblée sur `TONE_PIN` du codeur (broche 9), qui suit les touches enfoncées : c'est le manipulé idéal (vérité terrain). Les traces verte et cyan partagent la même bande, même hauteur haut/bas.
+- **Trace magenta** : décision de ton réellement prise par le décodeur (Otsu, ou Marge en `algo 0`). Elle doit reproduire la cyan avec un léger retard (segment de 5000 échantillons) ; tout écart (ton manquant, parasite, trait coupé) est une erreur de détection avant même le décodage ML.
+- **Trace jaune + ligne rouge** : la jaune est l'entrée d'Otsu (√puissance avec `dvar 1`), normalisée par un maximum glissant (~20 s) ; la rouge est le seuil effectif `thrEff × (1 + omargin)` sur la même échelle (absente avant le premier seuil Otsu). La magenta passe à 1 quand la jaune dépasse la rouge. Dans le bruit, la jaune oscille autour du niveau bas, les pics des tons la dépassent.
+- **Menu, ligne 4** : affiche « Otsu » quand `algo 1` ; la valeur de Marge, toujours éditable, n'agit qu'en `algo 0`.

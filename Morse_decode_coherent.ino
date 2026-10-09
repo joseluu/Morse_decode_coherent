@@ -98,6 +98,8 @@ bool scopePin14Level = false;
 bool scopePin15Level = false;
 bool scopeDetectLevel = false;
 float scopePowerPrev = 0.0f;
+float scopeThrPrev = 0.0f;
+volatile bool scopeDecision = false;   // decision de ton effectivement prise par le decodeur (Otsu ou Marge)
 float scopeRunMax = 1e-9f;        // maximum glissant d'affichage (la puissance brute ~1e-4 avec norm 0 : sans cela la trace du bas reste plate)
 bool scopeActive = false;
 bool scopeSerialRequested = false;
@@ -392,8 +394,9 @@ void updateOscilloscope() {
     scopeLastUpdate = millis();
     scopePin14Level = pin14Now;
     scopePin15Level = digitalRead(PIN_INPUT_2);
-    scopeDetectLevel = (CW_In.get_last_detection() > 0.5f);
+    scopeDetectLevel = scopeDecision;
     scopePowerPrev = scopeLevel(CW_In.get_last_power());
+    scopeThrPrev = 0.0f;
     // Start serial output if requested
     if (scopeSerialRequested) {
       scopeSerialRequested = false;
@@ -416,7 +419,7 @@ void updateOscilloscope() {
   // Read current levels
   bool newPin14 = digitalRead(PIN_INPUT_1);
   bool newPin15 = digitalRead(PIN_INPUT_2);
-  bool newDetect = (CW_In.get_last_detection() > 0.5f);
+  bool newDetect = scopeDecision;
   float newPower = CW_In.get_last_power();                // brute (sortie serie)
   float newLevel = scopeLevel(newPower);                  // 0..1 : niveau avant Otsu (meme grandeur que celle que voit Otsu), echelle auto
 
@@ -454,15 +457,28 @@ void updateOscilloscope() {
     tft.drawFastVLine(screenX, SCOPE_SYNC_HIGH, SCOPE_SYNC_LOW - SCOPE_SYNC_HIGH + 1, ILI9341_CYAN);
   }
 
-  // Draw detection trace (magenta) — binary from get_last_detection
+  // Draw detection trace (magenta) — decision de ton du decodeur (scopeDecision)
   int yDet = newDetect ? SCOPE_DETECT_HIGH : SCOPE_DETECT_LOW;
   tft.drawPixel(screenX, yDet, ILI9341_MAGENTA);
   if (newDetect != scopeDetectLevel) {
     tft.drawFastVLine(screenX, SCOPE_DETECT_HIGH, SCOPE_DETECT_LOW - SCOPE_DETECT_HIGH + 1, ILI9341_MAGENTA);
   }
 
-  // Draw power trace (yellow) — analog from get_last_power
   int powerRange = SCOPE_POWER_BOT - SCOPE_POWER_TOP;
+  // Seuil effectif de decision (rouge), meme echelle que la trace jaune ; 0 tant qu'aucun seuil n'existe
+  float thrNow = (decAlgo == 1) ? (otsu.valid ? thrEff * (1.0f + oMargin) : 0.0f) : Marge;
+  float thrLevel = thrNow / scopeRunMax;
+  int yThr = constrain(SCOPE_POWER_BOT - (int)(thrLevel * powerRange), SCOPE_POWER_TOP, SCOPE_POWER_BOT);
+  int yThrPrev = constrain(SCOPE_POWER_BOT - (int)(scopeThrPrev * powerRange), SCOPE_POWER_TOP, SCOPE_POWER_BOT);
+  if (thrNow > 0.0f) {
+    tft.drawPixel(screenX, yThr, ILI9341_RED);
+    if (yThr != yThrPrev && scopeThrPrev > 0.0f) {
+      tft.drawFastVLine(screenX, min(yThr, yThrPrev), abs(yThr - yThrPrev) + 1, ILI9341_RED);
+    }
+  }
+  scopeThrPrev = thrLevel;
+
+  // Draw power trace (yellow) — analog from get_last_power
   int yPow = SCOPE_POWER_BOT - (int)(newLevel * powerRange);
   yPow = constrain(yPow, SCOPE_POWER_TOP, SCOPE_POWER_BOT);
   int yPowPrev = SCOPE_POWER_BOT - (int)(scopePowerPrev * powerRange);
@@ -867,7 +883,8 @@ void drawMenuRow(int row) {
   } else if (row == 3) {
     tft.print(AudioSignalGenerator_F32::getModeName(sigGenSelIdx));
   } else if (row == 4) {
-    tft.print(Marge, 2);
+    if (decAlgo == 1) tft.print("Otsu ");
+    else tft.print(Marge, 2);
   }
 }
 
@@ -957,6 +974,7 @@ boolean sample() {
     } else {
       isTone = toneValue > Marge;
     }
+    scopeDecision = isTone;
 
     if (isTone) {
       tone_++;
