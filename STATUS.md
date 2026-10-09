@@ -490,3 +490,10 @@ paramètres propres au décodeur avec ML fixé, puis confirmation 3 × 165 s. To
 
 Les SNR d'optimisation diffèrent (−13 dB pour le cohérent, −12 pour les deux autres) : comparer à SNR égal demande les courbes Goertzel / K4ICY (à faire).
 Aucun des trois n'est réoptimisé avec ML à 15/20 WPM.
+
+## 2026-10-09 — Scope : trace jaune du bas (non commité)
+
+- Constat : avec `norm 0` (défaut ML 10 WPM), `get_last_power()` est brute (~1e-4..1e-2) ; l'affichage la plaçait sur une échelle 0..1, d'où une trace plate en bas.
+- Correctif d'affichage seulement (`scopeLevel()` dans `Morse_decode_coherent.ino`) : la trace montre la grandeur vue par Otsu avant décision (√puissance si `dvar 1`), normalisée par un maximum glissant (~20 s, 0,9995 par échantillon). Sortie CSV série du scope inchangée (valeur brute). Aucun effet sur le décodage.
+- Compilé et flashé sur le décodeur du banc le 2026-10-09 ; identités des deux cartes vérifiées. Vérification visuelle par l'utilisateur en attente.
+- Même jour : le scope balaie maintenant en continu (relance automatique en fin de balayage, `updateOscilloscope()`). Le front montant de la broche 14 ne sert plus qu'à synchroniser une capture série demandée (`scope`). Flashé sur le banc, vérification visuelle en attente.

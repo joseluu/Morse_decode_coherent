@@ -98,6 +98,7 @@ bool scopePin14Level = false;
 bool scopePin15Level = false;
 bool scopeDetectLevel = false;
 float scopePowerPrev = 0.0f;
+float scopeRunMax = 1e-9f;        // maximum glissant d'affichage (la puissance brute ~1e-4 avec norm 0 : sans cela la trace du bas reste plate)
 bool scopeActive = false;
 bool scopeSerialRequested = false;
 bool scopeSerialActive = false;
@@ -370,21 +371,29 @@ void setup() {
 // ----------------------------
 // updateOscilloscope()
 // ----------------------------
+// niveau affiche : grandeur d'entree d'Otsu (sqrt de la puissance si dvar 1), normalise par un maximum glissant (~20 s)
+float scopeLevel(float power) {
+  float v = (decAlgo == 1 && decVar == 1) ? sqrtf(fmaxf(power, 0.0f)) : power;
+  scopeRunMax = fmaxf(v, scopeRunMax * 0.9995f);
+  return v / scopeRunMax;
+}
+
 void updateOscilloscope() {
   // Refresh scope bar (yellow flash timeout)
   drawScopeBar();
 
-  // Read pin 14 and detect rising edge (trigger)
+  // Balayage continu ; le declenchement sur front montant de la broche 14 ne sert qu'a synchroniser une capture serie demandee
   bool pin14Now = digitalRead(PIN_INPUT_1);
-  if (pin14Now && !scopePin14Prev) {
-    // Rising edge on pin 14: reset sweep
+  bool freeRunRestart = scopeActive && scopeX >= SCOPE_WIDTH && !scopeSerialRequested;
+  if ((pin14Now && !scopePin14Prev && scopeSerialRequested) || freeRunRestart || !scopeActive) {
+    scopeSerialActive = false;
     scopeX = 0;
     scopeActive = true;
     scopeLastUpdate = millis();
     scopePin14Level = pin14Now;
     scopePin15Level = digitalRead(PIN_INPUT_2);
     scopeDetectLevel = (CW_In.get_last_detection() > 0.5f);
-    scopePowerPrev = CW_In.get_last_power();
+    scopePowerPrev = scopeLevel(CW_In.get_last_power());
     // Start serial output if requested
     if (scopeSerialRequested) {
       scopeSerialRequested = false;
@@ -408,7 +417,8 @@ void updateOscilloscope() {
   bool newPin14 = digitalRead(PIN_INPUT_1);
   bool newPin15 = digitalRead(PIN_INPUT_2);
   bool newDetect = (CW_In.get_last_detection() > 0.5f);
-  float newPower = CW_In.get_last_power();
+  float newPower = CW_In.get_last_power();                // brute (sortie serie)
+  float newLevel = scopeLevel(newPower);                  // 0..1 : niveau avant Otsu (meme grandeur que celle que voit Otsu), echelle auto
 
   // Serial output if active
   if (scopeSerialActive) {
@@ -453,7 +463,7 @@ void updateOscilloscope() {
 
   // Draw power trace (yellow) — analog from get_last_power
   int powerRange = SCOPE_POWER_BOT - SCOPE_POWER_TOP;
-  int yPow = SCOPE_POWER_BOT - (int)(newPower * powerRange);
+  int yPow = SCOPE_POWER_BOT - (int)(newLevel * powerRange);
   yPow = constrain(yPow, SCOPE_POWER_TOP, SCOPE_POWER_BOT);
   int yPowPrev = SCOPE_POWER_BOT - (int)(scopePowerPrev * powerRange);
   yPowPrev = constrain(yPowPrev, SCOPE_POWER_TOP, SCOPE_POWER_BOT);
@@ -468,7 +478,7 @@ void updateOscilloscope() {
   scopePin14Level = newPin14;
   scopePin15Level = newPin15;
   scopeDetectLevel = newDetect;
-  scopePowerPrev = newPower;
+  scopePowerPrev = newLevel;
 
   scopeX++;
 }
