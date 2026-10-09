@@ -461,6 +461,32 @@ Confirmation (`bench/coh_confirm_ml.py`, 8 jeux × 3 rép. × 165 s, `data/coh/c
 59 : 1,9 / 4,1 % ; 78 : 2,4 / 5,7 ; 39 : 2,4 / 3,2 ; 87 : 2,4 / 3,2 ; 81 : 3,3 / 7,3 ; 69 : 4,6 / 8,9 ; 47 : 4,6 / 8,1 ; **0 (jeu 10 WPM d'avant) : 6,2 / 11,4**.
 Classique sur les mêmes signaux : 10–23 %. Les 4 premiers sont ex æquo (±1,5 pt).
 **Retenu : essai 59** (`data/coh/freq_pre_ml13_10wpm.txt`, inclut `mlsigma 22;mlglitch 7`) ; essai 39 équivalent et plus régulier.
-Réserve : optimisé et confirmé à −13 dB / 10 WPM seulement ; non revalidé à d'autres SNR (la courbe CER vs SNR avec ce jeu reste à faire),
-ni à 15/20 WPM. Les défauts du firmware restent inchangés (30/8, ancien jeu) : appliquer le jeu par `set`.
-Non committé : `Morse_decode_coherent.ino` (`mlrec`), `bench/ml_record.py`, `ml_replay.py`, `coh_confirm_ml.py`, `coh_optuna.py` (--ml), `ml/ml_replay.cpp`, `data/ml/`, `data/coh/`.
+Réserve : optimisé et confirmé à −13 dB / 10 WPM seulement ; non revalidé à 15/20 WPM.
+
+### 2026-10-09 — Défauts du firmware et courbe CER vs SNR (10 WPM)
+**Défauts du firmware = jeu ML 10 WPM** (1.8.0-bench 2026-10-08 ML 10WPM) : `ml 1`, mlsigma 22 / mlglitch 7, algo Otsu (algo 1, dvar 1, norm 0), seg 5000, hop 450,
+fciq 8,119, fcpow 7,033, fcpre 1484,9, decay 0,999549, startref 190, owin 11000, omargin −0,148, osmooth 0,810. Commit 64f8974, branches `main` et `bench-otsu`
+fusionnées (avance rapide) et poussées. Flashé et vérifié par `status`.
+
+Courbe CER vs SNR avec ce jeu (10 WPM, niveau compensé crête ADC 0,09, 150 s/point, 2 blocs, sans espaces ; `bench/ml_ab_curve.py`,
+`data/ml/curve_coh_ml13_10wpm.{csv,log}`) :
+
+| SNR (dB) | −8 | −10 | −11 | −12 | −13 | −14 | −15 | −16 | −18 |
+|---|---|---|---|---|---|---|---|---|---|
+| classique | 0,0 | 0,0 | 1,2 | 6,1 | 25,8 | 32,9 | 49,6 | 65,2 | 73,8 |
+| **ML** | 0,0 | 0,0 | 0,0 | **2,0** | **4,9** | **9,8** | **22,0** | **43,1** | 70,7 |
+
+(CER en %. Ancien jeu « best12 » sans ML, une passe : 4,9 % à −12, 29,3 % à −14, 58,5 % à −16.)
+
+### Récapitulatif ML des trois décodeurs à 10 WPM (2026-10-09)
+Optimisation en 2 temps : (1) mlsigma / mlglitch par rejeu hors ligne d'enregistrements de transitions (`bench/ml_record.py`, `ml_replay.py`), (2) Optuna sur les
+paramètres propres au décodeur avec ML fixé, puis confirmation 3 × 165 s. Tous les défauts firmware sont maintenant ML actif avec ces réglages.
+
+| Décodeur | SNR d'optimisation | mlsigma / mlglitch | CER ML confirmé | classique (même signal) | détail |
+|---|---|---|---|---|---|
+| Cohérent | −13 dB | 22 / 7 | 1,9 % (essai 59) | 10–23 % | ci-dessus |
+| Goertzel V1.4 | −12 dB | 70 / 5 | 6,0 % (filter 1) | ≈ 16 % | `Morse_decode_V_1_4_FFT_1024_Tone/STATUS.md` |
+| K4ICY V3.0 | −12 dB | 60 / 5 | 5,4 % (essai 44) | ≈ 17 % | `Morse_decode_V_3_0_K4ICY_Otsu/STATUS.md` |
+
+Les SNR d'optimisation diffèrent (−13 dB pour le cohérent, −12 pour les deux autres) : comparer à SNR égal demande les courbes Goertzel / K4ICY (à faire).
+Aucun des trois n'est réoptimisé avec ML à 15/20 WPM.

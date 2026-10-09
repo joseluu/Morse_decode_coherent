@@ -70,3 +70,5 @@ Note : firmware 1.7.2-bench = 1.7.1 + commande `set norm 0|1` (par défaut 1 : c
 1. mlsigma / mlglitch optimisés hors ligne sur enregistrements réels (`mlrec`) → 22 ms / 7 nats (voir STATUS.md).
 2. Optuna des paramètres cohérent à −13 dB avec ML fixé à 22/7 (étude `coh_ml_13_10wpm`) ; puis confirmation du meilleur jeu (plusieurs blocs) vs jeu 10 WPM actuel.
 - Fait (2026-10-08 18:00) : phase 7 terminée, jeu retenu = essai 59 (voir STATUS.md). Suite possible : courbe CER vs SNR avec ce jeu (classique vs ML), puis refaire l'exercice à 15/20 WPM.
+
+- Fait (2026-10-09) : courbe CER vs SNR faite (classique vs ML, voir STATUS.md) ; le jeu 59 + ML 22/7 est le défaut du firmware (commit 64f8974). Même démarche en 2 temps appliquée au Goertzel V1.4 et au K4ICY V3.0 (défauts ML actifs). Suite possible : courbes CER vs SNR Goertzel / K4ICY avec leur jeu ML, réoptimisation à 15 / 20 WPM.
