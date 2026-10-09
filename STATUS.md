@@ -508,3 +508,21 @@ De haut en bas :
 - **Trace magenta** : décision de ton réellement prise par le décodeur (Otsu, ou Marge en `algo 0`). Elle doit reproduire la cyan avec un léger retard (segment de 5000 échantillons) ; tout écart (ton manquant, parasite, trait coupé) est une erreur de détection avant même le décodage ML.
 - **Trace jaune + ligne rouge** : la jaune est l'entrée d'Otsu (√puissance avec `dvar 1`), normalisée par un maximum glissant (~20 s) ; la rouge est le seuil effectif `thrEff × (1 + omargin)` sur la même échelle (absente avant le premier seuil Otsu). La magenta passe à 1 quand la jaune dépasse la rouge. Dans le bruit, la jaune oscille autour du niveau bas, les pics des tons la dépassent.
 - **Menu, ligne 4** : affiche « Otsu » quand `algo 1` ; la valeur de Marge, toujours éditable, n'agit qu'en `algo 0`.
+
+## 2026-10-09 — Comparatif des 3 décodeurs à 20 WPM / −10 dB, mode ML (`data/cmp20/`, `bench/cmp20_chain.sh`, `cmp20_part2.sh`, `cmp20_part3.sh`, `cmp20_tools.py`)
+
+Méthode : pour chaque décodeur, réglages classiques optimisés à 20 WPM, puis σ/glitch ML par enregistrement de 6 × 150 s de transitions et rejeu hors ligne (même méthode qu'à 10 WPM), puis confirmation 3 × 165 s en mode duel (CER du flux ML ; le flux classique est mesuré sur le même signal). Niveau compensé (crête 0,09), `--nospace`, ≈ 285 caractères par mesure.
+
+| Décodeur | Réglages 20 WPM | σ / glitch ML | CER ML : 3 mesures (moyenne) | CER classique (moyenne) |
+|---|---|---|---|---|
+| **Cohérent** | jeu #23 d'Optuna 20 WPM (`data/coh20/pre_best20_m10.txt`), Otsu, `norm 0` | 26 / 6 | 5,7 / 8,7 / 7,3 % (**7,2 %**) | 7,96 % |
+| **K4ICY V3.x** | `faithful -20` (jeu 20 WPM, essai #24) | 22 / 6 | 12,2 / 8,9 / 12,5 % (**11,2 %**) | 24,0 % |
+| **Goertzel V1.4** | Optuna 20 WPM de ce jour (31 essais, 90 min, ML σ35/glitch 5 pendant la recherche) : #25 `margin −0,185`, `filter 1`, `tonebw 46`, `startref 60` | 18 / 6 | 32,9 / 19,2 / 26,8 % (**26,3 %**) | 36,6 % |
+
+Lecture :
+- Classement à 20 WPM / −10 dB : cohérent (7,2 %) < K4ICY (11,2 %) < Goertzel (26,3 %). Écarts cohérent/K4ICY nets (plages 5,7–8,7 % et 8,9–12,5 % disjointes) ; Goertzel nettement derrière et dispersé (19–33 %).
+- ML apporte peu au cohérent à ce SNR (7,96 → 7,2 %, le classique est déjà bon), beaucoup au K4ICY (24,0 → 11,2 %) et un gain modéré au Goertzel (36,6 → 26,3 %).
+- Goertzel : le défaut du firmware (réglé à 10 WPM) donne ≈ 72 % de CER ML à 20 WPM (essai 0). `startref 60` est à la borne basse de la zone de recherche (60 … 300) et `tonebw 20` (borne basse) est souvent bon : élargir ces zones si la recherche se poursuit. Le meilleur essai de la recherche (23,6 %) est proche de sa confirmation (26,3 %).
+- Limites : K4ICY et cohérent n'ont pas fait l'objet d'une seconde recherche Optuna avec ML à 20 WPM (seuls σ/glitch ML sont réoptimisés) ; les σ/glitch ML par défaut des firmwares restent ceux de 10 WPM. Un seul SNR (−10 dB), 3 mesures par décodeur.
+- Incidents de campagne (sans effet sur les résultats) : un `--start-gain` ajouté par erreur à la commande de rejeu et un CSV factice mal formé pour la confirmation K4ICY ont fait relancer ces étapes ; enregistrements et mesures inchangés.
+- État laissé : coherent reflashé sur le banc (identité des deux cartes vérifiée), codeur à 20 WPM.
