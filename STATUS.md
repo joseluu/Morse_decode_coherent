@@ -526,3 +526,16 @@ Lecture :
 - Limites : K4ICY et cohérent n'ont pas fait l'objet d'une seconde recherche Optuna avec ML à 20 WPM (seuls σ/glitch ML sont réoptimisés) ; les σ/glitch ML par défaut des firmwares restent ceux de 10 WPM. Un seul SNR (−10 dB), 3 mesures par décodeur.
 - Incidents de campagne (sans effet sur les résultats) : un `--start-gain` ajouté par erreur à la commande de rejeu et un CSV factice mal formé pour la confirmation K4ICY ont fait relancer ces étapes ; enregistrements et mesures inchangés.
 - État laissé : coherent reflashé sur le banc (identité des deux cartes vérifiée), codeur à 20 WPM.
+
+
+## 2026-10-09 soir — Jeux de prereglage 10 / 15 / 20 WPM (firmware 1.9.0)
+
+Commande série `set wpm 10|15|20` (variable interne `wpmPreset`, table `WPM_PRESETS`, fonction `applyWpmPreset()`) : applique d'un coup norm/algo/dvar, seg, hop, fciq, fcpow, fcpre, decay, startref, owin, omargin, osmooth, mlsigma, mlglitch, puis remet le décodeur à zéro. Le mode `ml` (0/1/2) n'est pas modifié (le banc garde son `set ml 2`). `status` affiche `wpm=`. **Défaut au démarrage : 20 WPM.**
+
+| WPM | Source | σ / glitch |
+|---|---|---|
+| 10 | essai 59 (`data/coh/freq_pre_ml13_10wpm.txt`), A+B+C à −13 dB | 22 / 7 |
+| 15 | A à −10 dB (`data/coh15/pre_best15_m10.txt`) ; **σ/glitch PROVISOIRES** (interpolés entre 10 et 20 WPM, pas de campagne B/C à 15 WPM) | 24 / 6 |
+| 20 | A #23 (`data/coh20/pre_best20_m10.txt`) + B | 26 / 6 |
+
+Vérifié sur le banc : flash, bascule 10 → 15 → 20, rejet de `set wpm 7`, décodage du message de test à 20 WPM. Reste à faire : campagne B (et C) à 15 WPM pour remplacer les valeurs provisoires.

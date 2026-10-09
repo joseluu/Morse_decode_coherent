@@ -122,7 +122,19 @@ float oSmooth = 0.810f;               // lissage du seuil d'une fenetre a l'autr
 float thrEff = 0.0f;
 uint32_t otsuSeen = 0;
 int  segLen = 5000, hopLen = 450;
-float fcIq = 8.119f, fcPow = 7.033f, fcPre = 1484.9f, decayMax = 0.999549f;   // jeu 10 WPM + ML a -13 dB (essai 59)
+float fcIq = 8.119f, fcPow = 7.033f, fcPre = 1484.9f, decayMax = 0.999549f;   // surcharges par applyWpmPreset() au demarrage
+
+// Jeux de prereglage optimum (Otsu + ML) par vitesse ; selection : `set wpm 10|15|20`, variable wpmPreset. Detail : STATUS.md.
+struct WpmPreset {
+  int wpm; bool norm; int algo, dvar; int seg, hop; float fciq, fcpow, fcpre, decay;
+  unsigned long startref, owin; float omargin, osmooth, mlSigma, mlGlitch;
+};
+const WpmPreset WPM_PRESETS[3] = {
+  {10, false, 1, 1, 5000, 450, 8.119f,  7.033f, 1484.9f, 0.999549f, 190, 11000, -0.148f, 0.810f, 22.0f, 7.0f},   // essai 59 (ML, -13 dB)
+  {15, false, 1, 1, 3400, 650, 8.955f,  9.567f, 2517.4f, 0.999349f, 180, 27000, -0.063f, 0.776f, 24.0f, 6.0f},   // A (-10 dB) ; sigma/glitch interpoles : PROVISOIRE
+  {20, false, 1, 1, 3000, 300, 10.907f, 12.253f, 2654.5f, 0.999699f, 180, 26000, -0.028f, 0.277f, 26.0f, 6.0f},  // A #23 + B 26/6 (-10 dB)
+};
+int wpmPreset = 0;
 
 //-----------------------------utilisé par le décodeur
 float Diff = 0.2 ;
@@ -231,7 +243,7 @@ Encoder encoder;
 
 const short LED = 5;
 
-#define VERSION "1.8.0-bench 2026-10-08 ML 10WPM"
+#define VERSION "1.9.0-bench 2026-10-09 ML presets 10/15/20WPM"
 #define AUTEUR " F1FGV et F1VL"
 
 
@@ -363,10 +375,7 @@ void setup() {
  //-------------------------------------------------------------- pour le décodage
   Started = false;
   Measuring = false;
-  ml.sigma0 = 22.0f; ml.penGlitch = 7.0f;                 // ML optimises a -13 dB / 10 WPM (voir STATUS.md)
-  otsu.windowMs = 11000;
-  CW_In.set_norm(normOn);
-  applyDemod();
+  applyWpmPreset(20, false);                              // jeu par defaut : 20 WPM (voir STATUS.md)
   otsu.reset();
 }
 
@@ -520,6 +529,7 @@ void cmdHelp() {
   Serial.println("  set marge <value>     - set detection threshold");
   Serial.println("  scope                 - output next sweep as CSV");
   Serial.println("  reset | log on|off | peak [reset]   (bench v1.7)");
+  Serial.println("  set wpm 10|15|20      - optimum Otsu+ML preset for that speed (default 20)");
   Serial.println("  set algo|norm|track|trackk|dvar|omargin|osmooth|owin|ofirst|startref|seg|hop|fciq|fcpow|fcpre|decay|ml|mlsigma|mlglitch <v>   (ml 0|1|2 = decodeur vraisemblance maximale ; 2 = duel : classique MAJ + ML min dans le log)");
   Serial.print("Sources:");
   for (int i = 0; i < NUM_SOURCES; i++) {
@@ -552,6 +562,7 @@ void cmdStatus() {
   Serial.print("Decoder: Morse_decode_coherent ");
   Serial.println(VERSION);
   Serial.printf("ml=%d T=%.1f delta=%+.1f locked=%d chars=%lu glitches=%lu sigma=%.0f pen=%.1f\n", mlDual ? 2 : (mlOn ? 1 : 0), ml.unitMs, ml.delta, ml.locked ? 1 : 0, (unsigned long)ml.nChars, (unsigned long)ml.nGlitch, ml.sigma0, ml.penGlitch);
+  Serial.printf("wpm=%d\n", wpmPreset);
   Serial.printf("algo=%d (0=marge 1=otsu) dvar=%d norm=%d log=%d track=%d fcorr=%+.3f\n", decAlgo, decVar, normOn ? 1 : 0, logOn ? 1 : 0, CW_In.get_track() ? 1 : 0, CW_In.f_corr());
   Serial.printf("foff: %+.3f %.6f %lu\n", CW_In.foff_hz(), CW_In.foff_conf(), (unsigned long)CW_In.foff_updates());
   Serial.printf("seg=%d hop=%d fciq=%.3f fcpow=%.3f fcpre=%.1f decay=%.5f startref=%lu\n",
@@ -583,6 +594,25 @@ void resetDecoder() {
   Started = false; Measuring = false; Tone = false;
   Trailing_edge = millis();
   ml.reset();
+}
+
+bool applyWpmPreset(int w, bool doReset) {
+  for (int i = 0; i < 3; i++) {
+    const WpmPreset& p = WPM_PRESETS[i];
+    if (p.wpm != w) continue;
+    normOn = p.norm; decAlgo = p.algo; decVar = p.dvar;
+    segLen = p.seg; hopLen = p.hop; fcIq = p.fciq; fcPow = p.fcpow; fcPre = p.fcpre; decayMax = p.decay;
+    Start_reference = p.startref; otsu.windowMs = p.owin; oMargin = p.omargin; oSmooth = p.osmooth;
+    ml.sigma0 = p.mlSigma; ml.penGlitch = p.mlGlitch;
+    CW_In.set_norm(normOn);
+    applyDemod();
+    applyOtsuRange();
+    Reference = Start_reference;
+    wpmPreset = w;
+    if (doReset) resetDecoder();
+    return true;
+  }
+  return false;
 }
 
 void executeCommand(char* cmd) {
@@ -680,6 +710,10 @@ void executeCommand(char* cmd) {
       } else {
         Serial.println("Error: invalid value");
       }
+    } else if (strncmp(arg, "wpm ", 4) == 0) {
+      int w = atoi(arg + 4);
+      if (applyWpmPreset(w, true)) Serial.printf("wpm = %d (preset applied, decoder reset)\n", wpmPreset);
+      else Serial.println("Error: wpm must be 10, 15 or 20");
     } else if (strncmp(arg, "algo ", 5) == 0) {
       decAlgo = atoi(arg + 5) ? 1 : 0; otsu.reset(); otsuSeen = 0; Serial.printf("algo = %d\n", decAlgo);
     } else if (strncmp(arg, "norm ", 5) == 0) {
