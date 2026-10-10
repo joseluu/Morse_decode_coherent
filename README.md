@@ -64,7 +64,7 @@ Connect at 115200 baud. Available commands:
 - `set out<N> <source>` — assign source to output 0-1 (e.g. `set out0 INPUT`)
 - `set gain <value>` — set output gain (0.1, 1.0, or 10.0)
 - `set siggen <mode>` — set signal generator mode 0-6
-- `set wpm <10|15|20>` — apply the optimum Otsu+ML preset (demodulator, Otsu, startref, ML sigma/glitch) for that speed and reset the decoder; the default at power-on is the 20 WPM preset (15 WPM ML values are provisional, see STATUS.md)
+- `set wpm <10|15|20>` — apply the optimum Otsu+ML preset (demodulator, Otsu, startref, ML sigma/glitch) for that speed and reset the decoder; the default at power-on is the 20 WPM preset (ML values from the 2026-10-10 campaigns, see STATUS.md)
 - `set marge <value>` — set detection threshold (e.g. `set marge 0.3`)
 - `scope` — output next oscilloscope sweep as tab-separated CSV
 

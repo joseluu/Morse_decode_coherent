@@ -535,7 +535,7 @@ Commande série `set wpm 10|15|20` (variable interne `wpmPreset`, table `WPM_PRE
 | WPM | Source | σ / glitch |
 |---|---|---|
 | 10 | essai 59 (`data/coh/freq_pre_ml13_10wpm.txt`), A+B+C à −13 dB | 22 / 7 |
-| 15 | A à −10 dB (`data/coh15/pre_best15_m10.txt`) ; **σ/glitch PROVISOIRES** (interpolés entre 10 et 20 WPM, pas de campagne B/C à 15 WPM) | 24 / 6 |
+| 15 | A à −10 dB (`data/coh15/pre_best15_m10.txt`) + B (campagne 2026-10-10 : CER ML 0,8 %) ; C n'a rien amélioré, jeu A conservé | 18 / 10 |
 | 20 | A #23 (`data/coh20/pre_best20_m10.txt`) + B | 26 / 6 |
 
-Vérifié sur le banc : flash, bascule 10 → 15 → 20, rejet de `set wpm 7`, décodage du message de test à 20 WPM. Reste à faire : campagne B (et C) à 15 WPM pour remplacer les valeurs provisoires.
+Vérifié sur le banc : flash, bascule 10 → 15 → 20, rejet de `set wpm 7`, décodage du message de test à 20 WPM. Mise à jour 2026-10-10 : campagnes B et C à 15 WPM faites (σ/glitch 18/10) et C à 20 WPM faite (jeu A #23 conservé) ; voir `STATUT_COMPARATIF.md` §7.
