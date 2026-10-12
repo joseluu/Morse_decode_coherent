@@ -97,6 +97,56 @@ Le décodage lui-même n'utilise que l'audio : sans les fils 14 et 15 le décode
 déclenchement synchronisé du scope et la comparaison à la vérité terrain disparaissent (les pins flottantes
 donnent alors des traces aléatoires).
 
+### Identification des cartes sur la liaison série
+
+Avec deux Teensy branchés, `/dev/ttyACM0` / `ttyACM1` change au rebranchement. Une carte s'identifie à
+deux niveaux, qu'il faut contrôler tous les deux :
+
+1. **La carte physique**, par son numéro de série USB, via le chemin stable
+   `/dev/serial/by-id/usb-Teensyduino_USB_Serial_<n°>-if00` (le banc utilise `*<n°>*`) :
+
+   | Carte | N° de série | Chemin `by-id` |
+   |---|---|---|
+   | Codeur | `17765010` | `/dev/serial/by-id/*17765010*` |
+   | Décodeur | `17752810` | `/dev/serial/by-id/*17752810*` |
+
+2. **Le firmware réellement flashé**, par la réponse à la commande `status` (115 200 bauds) :
+
+   | Carte | Première ligne caractéristique de `status` | Exemple |
+   |---|---|---|
+   | Codeur | `Encoder: <VERSION>` juste après `--- Status ---` | `Encoder: codeur CW 1.6.22` |
+   | Décodeur cohérent | ligne `Decoder: Morse_decode_coherent <VERSION>` | `Decoder: Morse_decode_coherent 1.9.0-bench ...` |
+
+   La réponse du codeur est de la forme :
+
+   ```
+   --- Status ---
+   Encoder: codeur CW 1.6.22
+   snr:   10 dB  (index 0)
+   freq:  900.0 Hz
+   msg:   short  (index 1)
+   speed: 10 WPM  (index 0)
+   leftout: CW signal
+   gain:  0.1
+   --------------
+   ```
+
+   Le décodeur répond avec le texte du §5.4. Les deux familles sont donc reconnaissables sans
+   ambiguïté : `Encoder:` d'un côté, `Decoder:` de l'autre. Les anciens firmwares du codeur (avant la
+   ligne `Encoder:`) se reconnaissent seulement à `snr:` / `speed:`.
+
+Règles de sûreté (incident du 2026-10-03 : le firmware du décodeur avait été flashé sur la carte du
+codeur sans que le chemin `by-id`, lié à la carte physique, le trahisse) :
+- flasher avec le port de type `teensy` (`-p usb1/1-XX -l teensy`) retrouvé à partir du `by-id`, jamais avec
+  un `/dev/ttyACM*` quand deux cartes sont branchées (`bench/v2_flash.py <dossier_sketch>` applique la
+  procédure, un dossier nommé `Codeur*` va vers la carte du codeur) ;
+- **après tout flash, interroger les deux cartes par `status`** et vérifier `Encoder:` / `Decoder:` ; ne
+  jamais déduire un succès du code retour d'`arduino-cli upload` ;
+- laisser ~2 s après l'ouverture du port (redémarrage USB CDC) avant d'envoyer la commande, sinon la
+  réponse peut être vide (le contrôle automatique de `v2_flash.py` a ainsi signalé « ENCODER IDENTITY WRONG » juste après le flash du codeur, alors qu'un `status` envoyé 2 s après l'ouverture du port répondait correctement) ;
+- un flash redémarre la carte : le codeur revient à ses réglages de mise sous tension (SNR +10 dB,
+  vitesse 10 WPM, tonalité 900 Hz, message court) et le décodeur à son préréglage 20 WPM.
+
 ---
 
 ## 2. Affichage TFT 320×240 (rotation 1, fond noir)
