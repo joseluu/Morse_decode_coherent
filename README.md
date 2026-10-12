@@ -19,6 +19,9 @@ Debug outputs:
 
 ## User Interface
 
+Full description of the UI harness (screen, scope, rotary encoder, serial commands) for reproduction in another project: see [HARNAIS.md](HARNAIS.md).
+
+
 The TFT display (320x240, ILI9341) is divided into three zones:
 - **Top**: Decoded Morse text output (3 lines)
 - **Middle**: Menu with 4 function rows + scope bar
@@ -32,7 +35,7 @@ The TFT display (320x240, ILI9341) is divided into three zones:
 | 1   | Out Right | Same 11 sources |
 | 2   | Gain      | 0.1, 1.0, 10.0 (controls I2S output gain) |
 | 3   | Sig Gen   | 1.0, 0.0, -1.0, 0.9Hz, 9Hz, 90Hz, 900Hz (internal signal generator) |
-| 4   | Marge     | Detection threshold, 0.005 increments (calls `set_threshold()`) |
+| 4   | Marge     | Detection threshold, 0.01 increments (calls `set_threshold()`) |
 | 5   | Scope     | Button triggers serial CSV output |
 
 A rotary encoder navigates the menu; pushing it enters/exits parameter edit mode.
